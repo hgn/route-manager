@@ -1,0 +1,9 @@
+[Unit]
+Description=Route Manager
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/bin/router-manager -f /etc/route-manager/conf.json
+
+[Install]
+WantedBy=multi-user.target
