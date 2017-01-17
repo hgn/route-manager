@@ -122,11 +122,48 @@ def init_global_behavior(args, conf):
     else:
         msg("Debug: disabled\n")
 
+def check_system_table_conf(tables):
+    system_tables = set()
+    with open("/etc/iproute2/rt_tables", "r") as fd:
+        for line in fd.readlines():
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+            elements = line.split()
+            if len(elements) != 2:
+                continue
+            system_tables.add(elements[1])
+    for name in tables:
+        if name not in system_tables:
+            err("routing table: {}, not in system table: {}\n".format(
+                name, "/etc/iproute2/rt_tables"))
+
+def check_conf_tables(conf):
+    table_set = set()
+    if not "default-table" in conf:
+        err("No default table configured\n")
+    def_table = conf["default-table"]
+    found_default_table = False
+    for selectors in conf['table-selectors']:
+        table_set.add(selectors['table'])
+        if def_table == selectors['table']:
+            found_default_table = True
+    if not found_default_table:
+        err("default table must be in table selector list as well")
+    check_system_table_conf(table_set)
+
+
+def check_conf(conf):
+    check_conf_tables(conf)
+
+
+
 
 def conf_init():
     args = parse_args()
     conf = load_configuration_file(args)
     init_global_behavior(args, conf)
+    check_conf(conf)
     return conf
 
 
