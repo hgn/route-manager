@@ -11,7 +11,6 @@ import datetime
 import argparse
 import pprint
 import subprocess
-import addict
 
 # default false, can be changed via program arguments (-v)
 DEBUG_ON = False
@@ -50,11 +49,16 @@ def execute_command(command):
     return subprocess.check_output(command.split(), shell=True).decode("utf-8")
 
 
+def process_full_dynamic(ctx, data):
+    print(data)
+
+
 async def handle_route_full_dynamic(request):
     ctx = request.app['ctx']
     # usually from DMPRD
     try:
         request_data = await request.json()
+        process_full_dynamic(ctx, request_data)
     except json.decoder.JSONDecodeError:
         response_data = {'status': 'failure', "message": "data not properly formated"}
         body = json.dumps(response_data).encode('utf-8')
@@ -70,10 +74,10 @@ def http_init(ctx, loop):
     app['ctx'] = ctx
     app.router.add_route('POST', "/api/v1/route-full-dynamic", handle_route_full_dynamic)
     server = loop.create_server(app.make_handler(),
-                                conf.common.v4_listen_addr,
-                                conf.common.v4_listen_port)
+                                conf['common']['v4_listen_addr'],
+                                conf['common']['v4_listen_port'])
     fmt = "HTTP IPC server started at http://{}:{}\n"
-    msg(fmt.format(conf.common.v4_listen_addr, conf.common.v4_listen_port))
+    msg(fmt.format(conf['common']['v4_listen_addr'], conf['common']['v4_listen_port']))
     loop.run_until_complete(server)
 
 
@@ -107,12 +111,12 @@ def parse_args():
 
 def load_configuration_file(args):
     with open(args.configuration) as json_data:
-        return addict.Dict(json.load(json_data))
+        return json.load(json_data)
 
 
 def init_global_behavior(args, conf):
     global DEBUG_ON
-    if conf.common.debug or args.verbose:
+    if conf['common']['debug'] or args.verbose:
         msg("Debug: enabled\n")
         DEBUG_ON = True
     else:
