@@ -20,6 +20,8 @@ DEBUG_ON = False
 EXIT_OK      = 0
 EXIT_FAILURE = 1
 
+def time_fnt():
+    return datetime.datetime.now().strftime('%H:%M:%S')
 
 def err(msg):
     sys.stderr.write(msg)
@@ -50,7 +52,21 @@ def execute_command(command):
 
 
 def process_full_dynamic(ctx, data):
-    print(data)
+    if not 'route-tables' in data:
+        warn("message seems corrupt, no route-tables in data\n")
+        return False
+    tables = data['route-tables']
+    print("\n")
+    for table_name, table_list in tables.items():
+        print("{}  table: {}".format(time_fnt(), table_name))
+        for table_item in table_list:
+            # {'prefix-len': '24', 'proto': 'v4', 'prefix': '44.101.177.0', 'interface': 'wifi0', 'next-hop': '10.10.10.140'}
+            ipfull = "{}/{}".format(table_item['prefix'], table_item['prefix-len'])
+            iface = table_item['interface']
+            next_hop = table_item['next-hop']
+            info = "{} via {} at {}".format(ipfull, next_hop, iface)
+            print("  {}".format(info))
+    return True
 
 
 async def handle_route_full_dynamic(request):
@@ -58,13 +74,16 @@ async def handle_route_full_dynamic(request):
     # usually from DMPRD
     try:
         request_data = await request.json()
-        process_full_dynamic(ctx, request_data)
+        ok = process_full_dynamic(ctx, request_data)
     except json.decoder.JSONDecodeError:
         response_data = {'status': 'failure', "message": "data not properly formated"}
         body = json.dumps(response_data).encode('utf-8')
         return aiohttp.web.Response(body=body, content_type="application/json")
 
-    response_data = {'status': 'ok', "data" : None}
+    status = 'ok'
+    if not ok:
+        status = 'fail'
+    response_data = {'status': status, "data" : None}
     body = json.dumps(response_data).encode('utf-8')
     return aiohttp.web.Response(body=body, content_type="application/json")
 
@@ -122,6 +141,7 @@ def init_global_behavior(args, conf):
     else:
         msg("Debug: disabled\n")
 
+
 def check_system_table_conf(tables):
     system_tables = set()
     with open("/etc/iproute2/rt_tables", "r") as fd:
@@ -137,6 +157,7 @@ def check_system_table_conf(tables):
         if name not in system_tables:
             err("routing table: {}, not in system table: {}\n".format(
                 name, "/etc/iproute2/rt_tables"))
+
 
 def check_conf_tables(conf):
     table_set = set()
@@ -155,8 +176,6 @@ def check_conf_tables(conf):
 
 def check_conf(conf):
     check_conf_tables(conf)
-
-
 
 
 def conf_init():
