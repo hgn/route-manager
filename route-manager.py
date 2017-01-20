@@ -174,8 +174,22 @@ def check_conf_tables(conf):
     check_system_table_conf(table_set)
 
 
+def check_interfaces(conf):
+    if not "interfaces" in conf:
+        err("No interfaces configured\n")
+    for interface in conf['interfaces']:
+        if not 'type' in interface:
+            err("No type for interface configured\n")
+        type_ = interface['type']
+        if type_ not in ('terminal-local-rest'):
+            err("interface not supported: {}".format(type_))
+        if not 'type-data' in interface:
+            err("No type-data for interface configured\n")
+
+
 def check_conf(conf):
     check_conf_tables(conf)
+    check_interfaces(conf)
 
 
 def conf_init():

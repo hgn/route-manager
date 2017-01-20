@@ -5,11 +5,17 @@
         "v4_listen_port" : "16001"
 	},
 
-	"interfaces" : [
+    "interfaces" : [
 		{
 			"name" : "eth0",
 			"type" : "terminal-local-rest",
-			"type-data" : {}
+			"type-data" : {
+				"url" : "http://localhost:160010/api/v1/foo"
+			},
+			"supplement-rules" : [
+				{ "proto" : "v4", "prefix" : "99.98.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" },
+				{ "proto" : "v4", "prefix" : "99.99.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
+			]
 		}
 	],
 
