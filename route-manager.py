@@ -11,6 +11,7 @@ import datetime
 import argparse
 import pprint
 import subprocess
+import urllib.request
 
 # default false, can be changed via program arguments (-v)
 DEBUG_ON = False
@@ -49,6 +50,26 @@ def msg(msg):
 def execute_command(command):
     print(command)
     return subprocess.check_output(command.split(), shell=True).decode("utf-8")
+
+
+def fwd_terminal_local_rest(ctx, interface, msg):
+    url = ctx['conf']['type-data']['url']
+    proxy_support = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(proxy_support)
+    urllib.request.install_opener(opener)
+    req = urllib.request.Request(url)
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('Accept', 'application/json')
+    req.add_header('User-Agent', 'Mozilla/1.22 (compatible; MSIE 2.0; Windows 95),')
+    data = dict()
+    data['route-tables'] = None
+    tx_data = json.dumps(data).encode('utf-8')
+    try:
+        with urllib.request.urlopen(req, tx_data, timeout=3) as res:
+            resp = json.loads(str(res.read(), "utf-8"))
+            print(pprint.pformat(resp))
+    except urllib.error.URLError as e:
+        print("Connection error: {}".format(e))
 
 
 def process_full_dynamic(ctx, data):
