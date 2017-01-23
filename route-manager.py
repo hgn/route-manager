@@ -52,8 +52,55 @@ def execute_command(command):
     return subprocess.check_output(command.split(), shell=True).decode("utf-8")
 
 
-def fwd_terminal_local_rest(ctx, interface, msg):
-    url = ctx['conf']['type-data']['url']
+def terminal_local_rest_create_inbound_routes(ctx, next_hop):
+    if not "networks-local" in ctx["conf"]:
+        return list() # empty list
+    routes = list()
+    for network in ctx["conf"]["networks-local"]:
+        if network["proto"] != "v4":
+            raise Exception("Network protocol not supported")
+        # { "prefix": "192.168.1.0": "prefixlen": "24", "gateway": "1.1.1.1", "interface": "eth0" },
+        entry = dict()
+        entry["prefix"] = network["prefix"]
+        entry["prefixlen"] = network["prefix-len"]
+        entry["interface"] = "eth0"
+        entry["gateway"] = next_hop
+        routes.append(entry)
+    return routes
+
+
+def terminal_local_rest_process(ctx, interface):
+    url = interface["type-data"]["url-set-routes"]
+    addr_v4 = interface["terminal-ipv4"]
+    terminal_inbound_routes = terminal_local_rest_create_inbound_routes(ctx, addr_v4)
+    fwd_terminal_local_rest(url, terminal_inbound_routes)
+
+
+def inform_periodically_terminal_local_rest(ctx, interface):
+    terminal_local_rest_process(ctx, interface)
+
+
+def inform_periodically(ctx):
+    print("periodic inform handler")
+    for interface in ctx["conf"]["interfaces"]:
+        if interface["type"] == "terminal-local-rest":
+            inform_periodically_terminal_local_rest(ctx, interface)
+            continue
+        raise Exception("terminal type not supported")
+
+
+async def route_broadcast(ctx):
+    interval = 5
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            inform_periodically(ctx)
+        except asyncio.CancelledError:
+            break
+    asyncio.get_event_loop().stop()
+
+
+def fwd_terminal_local_rest(url, data):
     proxy_support = urllib.request.ProxyHandler({})
     opener = urllib.request.build_opener(proxy_support)
     urllib.request.install_opener(opener)
@@ -61,9 +108,9 @@ def fwd_terminal_local_rest(ctx, interface, msg):
     req.add_header('Content-Type', 'application/json')
     req.add_header('Accept', 'application/json')
     req.add_header('User-Agent', 'Mozilla/1.22 (compatible; MSIE 2.0; Windows 95),')
-    data = dict()
-    data['route-tables'] = None
     tx_data = json.dumps(data).encode('utf-8')
+    print("TX data to: \"{}\"".format(url))
+    print(tx_data)
     try:
         with urllib.request.urlopen(req, tx_data, timeout=3) as res:
             resp = json.loads(str(res.read(), "utf-8"))
@@ -81,7 +128,8 @@ def process_full_dynamic(ctx, data):
     for table_name, table_list in tables.items():
         print("{}  table: {}".format(time_fnt(), table_name))
         for table_item in table_list:
-            # {'prefix-len': '24', 'proto': 'v4', 'prefix': '44.101.177.0', 'interface': 'wifi0', 'next-hop': '10.10.10.140'}
+            # {'prefix-len': '24', 'proto': 'v4', 'prefix': '44.101.177.0',
+            # 'interface': 'wifi0', 'next-hop': '10.10.10.140'}
             ipfull = "{}/{}".format(table_item['prefix'], table_item['prefix-len'])
             iface = table_item['interface']
             next_hop = table_item['next-hop']
@@ -100,7 +148,6 @@ async def handle_route_full_dynamic(request):
         response_data = {'status': 'failure', "message": "data not properly formated"}
         body = json.dumps(response_data).encode('utf-8')
         return aiohttp.web.Response(body=body, content_type="application/json")
-
     status = 'ok'
     if not ok:
         status = 'fail'
@@ -124,13 +171,14 @@ def http_init(ctx, loop):
 def ctx_new(conf):
     ctx = dict()
     ctx['conf'] = conf
+    return ctx
 
 
 def main(conf):
     ctx = ctx_new(conf)
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
-
+    asyncio.ensure_future(route_broadcast(ctx))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
@@ -209,7 +257,7 @@ def check_interfaces(conf):
 
 
 def check_conf(conf):
-    check_conf_tables(conf)
+    #check_conf_tables(conf)
     check_interfaces(conf)
 
 

@@ -1,23 +1,39 @@
 {
-    "common" : {
-        "debug" : false,
-        "v4_listen_addr" : "0.0.0.0",
-        "v4_listen_port" : "16001"
+	"common" : {
+		"debug" : false,
+		"v4_listen_addr" : "0.0.0.0",
+		"v4_listen_port" : "16001"
 	},
 
-    "interfaces" : [
+	"networks-local" : [
+		{ "proto" : "v4", "prefix" : "99.98.0.0", "prefix-len": "16", "interface" : "eth0", "local-management" : "no" }
+	],
+
+	"networks-supplement-remote" : [
+		{ "proto" : "v4", "prefix" : "99.98.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" },
+		{ "proto" : "v4", "prefix" : "99.99.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
+	],
+
+
+	"interfaces" : [
 		{
 			"name" : "eth0",
 			"type" : "terminal-local-rest",
 			"type-data" : {
-				"url" : "http://localhost:160010/api/v1/foo"
+				"url-set-routes" : "http://localhost:5180/api/v1/WB-LOS/routes-set"
 			},
-			"supplement-rules" : [
-				{ "proto" : "v4", "prefix" : "99.98.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" },
-				{ "proto" : "v4", "prefix" : "99.99.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
-			]
+
+			"terminal-ipv4" : "192.168.1.1",
+
+			"transport-data" : {
+				"10.0.1.1" : {
+					"prefix-len" : "24",
+					"terminal-remote-air-ipv4" : "169.168.1.1"
+				}
+			}
 		}
 	],
+
 
 	"default-table" : "lowest_latency",
 
