@@ -18,32 +18,32 @@ class DSCP:
     IPTOS_THROUGHPUT = 0x08
     IPTOS_RELIABILITY = 0x04
     IPTOS_LOWCOST = 0x02
-    IPTOS_MINCOST = IPTOS_LOWCOST
+    IPTOS_MINCOST = 0x02
 
     # RFC2474
-    IPTOS_DSCP_AF11 = 0x28
-    IPTOS_DSCP_AF12 = 0x30
-    IPTOS_DSCP_AF13 = 0x38
-    IPTOS_DSCP_AF21 = 0x48
-    IPTOS_DSCP_AF22 = 0x50
-    IPTOS_DSCP_AF23 = 0x58
-    IPTOS_DSCP_AF31 = 0x68
-    IPTOS_DSCP_AF32 = 0x70
-    IPTOS_DSCP_AF33 = 0x78
-    IPTOS_DSCP_AF41 = 0x88
-    IPTOS_DSCP_AF42 = 0x90
-    IPTOS_DSCP_AF43 = 0x98
+    AF11 = 0x28
+    AF12 = 0x30
+    AF13 = 0x38
+    AF21 = 0x48
+    AF22 = 0x50
+    AF23 = 0x58
+    AF31 = 0x68
+    AF32 = 0x70
+    AF33 = 0x78
+    AF41 = 0x88
+    AF42 = 0x90
+    AF43 = 0x98
 
-    IPTOS_DSCP_CS0 = 0x00
-    IPTOS_DSCP_CS1 = 0x20
-    IPTOS_DSCP_CS2 = 0x40
-    IPTOS_DSCP_CS3 = 0x60
-    IPTOS_DSCP_CS4 = 0x80
-    IPTOS_DSCP_CS5 = 0xa0
-    IPTOS_DSCP_CS6 = 0xc0
-    IPTOS_DSCP_CS7 = 0xe0
+    CS0 = 0x00
+    CS1 = 0x20
+    CS2 = 0x40
+    CS3 = 0x60
+    CS4 = 0x80
+    CS5 = 0xa0
+    CS6 = 0xc0
+    CS7 = 0xe0
 
-    IPTOS_DSCP_EF = 0xb8
+    EF = 0xb8
 
 
 
