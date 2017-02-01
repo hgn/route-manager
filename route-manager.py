@@ -13,6 +13,40 @@ import pprint
 import subprocess
 import urllib.request
 
+class DSCP:
+    IPTOS_LOWDELAY = 0x10
+    IPTOS_THROUGHPUT = 0x08
+    IPTOS_RELIABILITY = 0x04
+    IPTOS_LOWCOST = 0x02
+    IPTOS_MINCOST = IPTOS_LOWCOST
+
+    # RFC2474
+    IPTOS_DSCP_AF11 = 0x28
+    IPTOS_DSCP_AF12 = 0x30
+    IPTOS_DSCP_AF13 = 0x38
+    IPTOS_DSCP_AF21 = 0x48
+    IPTOS_DSCP_AF22 = 0x50
+    IPTOS_DSCP_AF23 = 0x58
+    IPTOS_DSCP_AF31 = 0x68
+    IPTOS_DSCP_AF32 = 0x70
+    IPTOS_DSCP_AF33 = 0x78
+    IPTOS_DSCP_AF41 = 0x88
+    IPTOS_DSCP_AF42 = 0x90
+    IPTOS_DSCP_AF43 = 0x98
+
+    IPTOS_DSCP_CS0 = 0x00
+    IPTOS_DSCP_CS1 = 0x20
+    IPTOS_DSCP_CS2 = 0x40
+    IPTOS_DSCP_CS3 = 0x60
+    IPTOS_DSCP_CS4 = 0x80
+    IPTOS_DSCP_CS5 = 0xa0
+    IPTOS_DSCP_CS6 = 0xc0
+    IPTOS_DSCP_CS7 = 0xe0
+
+    IPTOS_DSCP_EF = 0xb8
+
+
+
 # default false, can be changed via program arguments (-v)
 DEBUG_ON = False
 
