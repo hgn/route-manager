@@ -133,12 +133,13 @@ async def route_broadcast(ctx):
             break
     asyncio.get_event_loop().stop()
 
+
 async def print_routes_periodically(ctx):
     interval = 5
     while True:
         try:
             await asyncio.sleep(interval)
-            print_routes(ctx)
+            #print_routes(ctx)
         except asyncio.CancelledError:
             break
     asyncio.get_event_loop().stop()
@@ -149,25 +150,24 @@ def db_check_outdated_underlay(ctx):
     if not ctx['db-underlay-last-updated']:
         return
     diff = datetime.datetime.utcnow() - ctx['db-underlay-last-updated']
-    if diff > timeout:
+    if diff > float(timeout):
         # reset everything
         print("underlay older than {}, remove it now".format(timeout))
         ctx['db-underlay'] = dict()
+
 
 def db_check_outdated_overlay(ctx):
     timeout = ctx['conf']['common']['overlay-deadtime']
     if not ctx['db-overlay-last-updated']:
         return
     diff = datetime.datetime.utcnow() - ctx['db-overlay-last-updated']
-    if diff > timeout:
+    if diff > float(timeout):
         # reset everything
         print("overlay older than {}, remove it now".format(timeout))
         ctx['db-overlay'] = dict()
 
 
 def db_check_outdated(ctx):
-    ctx['conf']['common']['underlay-deadtime']
-
     db_check_outdated_underlay(ctx)
     db_check_outdated_overlay(ctx)
 
