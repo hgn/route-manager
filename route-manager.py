@@ -153,7 +153,8 @@ def fwd_terminal_local_rest(url, data):
         print("Connection error: {}".format(e))
 
 
-def process_full_dynamic(ctx, data):
+def process_overlay_full_dynamic(ctx, data):
+    warn("receive message from OVERERLAY (DMPRD)\n")
     if not 'route-tables' in data:
         warn("message seems corrupt, no route-tables in data\n")
         return False
@@ -172,12 +173,37 @@ def process_full_dynamic(ctx, data):
     return True
 
 
-async def handle_route_full_dynamic(request):
+async def overlay_handle_rest_rx(request):
     ctx = request.app['ctx']
     # usually from DMPRD
     try:
         request_data = await request.json()
-        ok = process_full_dynamic(ctx, request_data)
+        ok = process_overlay_full_dynamic(ctx, request_data)
+    except json.decoder.JSONDecodeError:
+        response_data = {'status': 'failure', "message": "data not properly formated"}
+        body = json.dumps(response_data).encode('utf-8')
+        return aiohttp.web.Response(body=body, content_type="application/json")
+    status = 'ok'
+    if not ok:
+        status = 'fail'
+    response_data = {'status': status, "data" : None}
+    body = json.dumps(response_data).encode('utf-8')
+    return aiohttp.web.Response(body=body, content_type="application/json")
+
+
+def process_underlay_full_dynamic(ctx, data):
+    warn("receive message from UNDERLAY (ohndl)\n")
+    print(data)
+    print("\n")
+    return True
+
+
+async def underlay_handle_rest_rx(request):
+    ctx = request.app['ctx']
+    # usually from OHNDL
+    try:
+        request_data = await request.json()
+        ok = process_underlay_full_dynamic(ctx, request_data)
     except json.decoder.JSONDecodeError:
         response_data = {'status': 'failure', "message": "data not properly formated"}
         body = json.dumps(response_data).encode('utf-8')
@@ -193,8 +219,10 @@ async def handle_route_full_dynamic(request):
 def http_init(ctx, loop):
     app = aiohttp.web.Application(loop=loop)
     app['ctx'] = ctx
-    rest_path = ctx['conf']['dynamic-receiver']['overlay']['path']
-    app.router.add_route('POST', rest_path, handle_route_full_dynamic)
+    overlay_path = ctx['conf']['dynamic-receiver']['overlay']['path']
+    app.router.add_route('POST', overlay_path, overlay_handle_rest_rx)
+    underlay_path = ctx['conf']['dynamic-receiver']['underlay']['path']
+    app.router.add_route('POST', underlay_path, underlay_handle_rest_rx)
     server = loop.create_server(app.make_handler(),
                                 conf['common']['v4_listen_addr'],
                                 conf['common']['v4_listen_port'])
@@ -292,7 +320,7 @@ def check_interfaces(conf):
 
 
 def check_conf(conf):
-    #check_conf_tables(conf)
+    check_conf_tables(conf)
     check_interfaces(conf)
 
 

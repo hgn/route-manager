@@ -40,6 +40,9 @@
     "dynamic-receiver" : {
         "overlay" : {
             "path" : "/api/v1/overlay-route-full-dynamic"
+        },
+        "underlay" : {
+            "path" : "/api/v1/underlay-route-full-dynamic"
         }
     },
 
