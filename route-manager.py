@@ -134,12 +134,31 @@ async def route_broadcast(ctx):
     asyncio.get_event_loop().stop()
 
 
+def print_routes_underlay(ctx):
+    print("UNDERLAY routes")
+    for interface_name, interface_data in ctx['db-underlay'].items():
+        for originator_ip_v4, routes in interface_data.items():
+            for route in routes:
+                msg = "[{}] {} > {}/{} (term air: {})".format(interface_name, originator_ip_v4,
+                                               route['prefix'], route['prefix-len'],
+                                               route['remote-terminal-air-ip-v4'])
+                print(msg)
+
+
+
+def print_routes_overlay(ctx):
+    pass
+
+def print_routes(ctx):
+    print_routes_underlay(ctx)
+    print_routes_overlay(ctx)
+
 async def print_routes_periodically(ctx):
-    interval = 5
+    interval = 1
     while True:
         try:
             await asyncio.sleep(interval)
-            #print_routes(ctx)
+            print_routes(ctx)
         except asyncio.CancelledError:
             break
     asyncio.get_event_loop().stop()
@@ -275,16 +294,16 @@ def process_underlay_full_dynamic(ctx, data):
     # maximum bandwidth of this interface
     terminal_bandwidth_max = data['terminal']['bandwidth-max']
 
-    if not terminal_interface_name in ctx['db-underlay']:
-        ctx['db-underlay'][terminal_interface_name] = dict()
+    # clean up everything, remove old ones for now
+    ctx['db-underlay'][terminal_interface_name] = dict()
 
     for route in data['routes']:
         prefix     = route['prefix']
         prefix_len = route['prefix-len']
         originator_ip_v4 = route['originator-ohndl-addr-v4']
 
-        # clean up everything, remove old ones for now
-        ctx['db-underlay'][terminal_interface_name][originator_ip_v4] = list()
+        if not originator_ip_v4 in ctx['db-underlay'][terminal_interface_name]:
+            ctx['db-underlay'][terminal_interface_name][originator_ip_v4] = list()
         e = dict()
         e['prefix'] = prefix
         e['prefix-len'] = prefix_len
