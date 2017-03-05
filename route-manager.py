@@ -241,7 +241,7 @@ def main(conf):
     ctx = ctx_new(conf)
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
-    asyncio.ensure_future(route_broadcast(ctx))
+    #asyncio.ensure_future(route_broadcast(ctx))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
