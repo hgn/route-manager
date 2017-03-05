@@ -2,7 +2,10 @@
 	"common" : {
 		"debug" : false,
 		"v4_listen_addr" : "0.0.0.0",
-		"v4_listen_port" : "16001"
+		"v4_listen_port" : "16001",
+
+        "underlay-deadtime" : "30",
+        "overlay-deadtime" : "30"
 	},
 
 	"networks-local" : [

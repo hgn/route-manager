@@ -144,6 +144,53 @@ async def print_routes_periodically(ctx):
     asyncio.get_event_loop().stop()
 
 
+def db_check_outdated_underlay(ctx):
+    timeout = ctx['conf']['common']['underlay-deadtime']
+    if not ctx['db-underlay-last-updated']:
+        return
+    diff = datetime.datetime.utcnow() - ctx['db-underlay-last-updated']
+    if diff > timeout:
+        # reset everything
+        print("underlay older than {}, remove it now".format(timeout))
+        ctx['db-underlay'] = dict()
+
+def db_check_outdated_overlay(ctx):
+    timeout = ctx['conf']['common']['overlay-deadtime']
+    if not ctx['db-overlay-last-updated']:
+        return
+    diff = datetime.datetime.utcnow() - ctx['db-overlay-last-updated']
+    if diff > timeout:
+        # reset everything
+        print("overlay older than {}, remove it now".format(timeout))
+        ctx['db-overlay'] = dict()
+
+
+def db_check_outdated(ctx):
+    ctx['conf']['common']['underlay-deadtime']
+
+    db_check_outdated_underlay(ctx)
+    db_check_outdated_overlay(ctx)
+
+
+async def db_check_outdated_periodically(ctx):
+    # normally overlay as well as underlay send us
+    # the full set of routes, but it can happen that
+    # the overlay or underlay process died, yes. We should
+    # delete the routes too, right? This is save default,
+    # to catch any errors and bring the system in a stable
+    # state again. If everything is fine we can probably remove
+    # this functionality in the future.
+    interval = 5
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            db_check_outdated(ctx)
+        except asyncio.CancelledError:
+            break
+    asyncio.get_event_loop().stop()
+
+
+
 def fwd_terminal_local_rest(url, data):
     proxy_support = urllib.request.ProxyHandler({})
     opener = urllib.request.build_opener(proxy_support)
@@ -219,6 +266,7 @@ async def underlay_handle_rest_rx(request):
         body = json.dumps(response_data).encode('utf-8')
         return aiohttp.web.Response(body=body, content_type="application/json")
     status = 'ok'
+    ctx['db-underlay-last-updated'] = datetime.datetime.utcnow()
     if not ok:
         status = 'fail'
     response_data = {'status': status, "data" : None}
@@ -245,7 +293,9 @@ def ctx_new(conf):
     ctx = dict()
     ctx['conf'] = conf
     ctx['db-underlay'] = dict()
+    ctx['db-underlay-last-updated'] = None
     ctx['db-overlay'] = dict()
+    ctx['db-overlay-last-updated'] = None
     return ctx
 
 
@@ -255,6 +305,7 @@ def main(conf):
     http_init(ctx, loop)
     #asyncio.ensure_future(route_broadcast(ctx))
     asyncio.ensure_future(print_routes_periodically(ctx))
+    asyncio.ensure_future(db_check_outdated_periodically(ctx))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
