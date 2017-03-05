@@ -193,7 +193,7 @@ async def overlay_handle_rest_rx(request):
 
 def process_underlay_full_dynamic(ctx, data):
     warn("receive message from UNDERLAY (ohndl)\n")
-    print(data)
+    pprint.pprint(data)
     print("\n")
     return True
 
