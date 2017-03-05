@@ -193,7 +193,8 @@ async def handle_route_full_dynamic(request):
 def http_init(ctx, loop):
     app = aiohttp.web.Application(loop=loop)
     app['ctx'] = ctx
-    app.router.add_route('POST', "/api/v1/route-full-dynamic", handle_route_full_dynamic)
+    rest_path = ctx['conf']['dynamic-receiver']['overlay']['path']
+    app.router.add_route('POST', rest_path, handle_route_full_dynamic)
     server = loop.create_server(app.make_handler(),
                                 conf['common']['v4_listen_addr'],
                                 conf['common']['v4_listen_port'])

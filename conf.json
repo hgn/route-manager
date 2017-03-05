@@ -11,9 +11,12 @@
 
 	"networks-supplement-remote" : [
 		{ "proto" : "v4", "prefix" : "99.98.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" },
-		{ "proto" : "v4", "prefix" : "99.99.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
+		{ "proto" : "v4", "prefix" : "98.99.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
 	],
 
+	"networks-supplement" : [
+		{ "proto" : "v4", "prefix" : "90.98.0.0", "prefix-len": "16", "next-hop" : "192.168.1.1" }
+	],
 
 	"interfaces" : [
 		{
@@ -33,6 +36,12 @@
 			}
 		}
 	],
+
+    "dynamic-receiver" : {
+        "overlay" : {
+            "path" : "/api/v1/overlay-route-full-dynamic"
+        }
+    },
 
 
 	"default-table" : "lowest_latency",
