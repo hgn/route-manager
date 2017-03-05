@@ -150,10 +150,11 @@ def db_check_outdated_underlay(ctx):
     if not ctx['db-underlay-last-updated']:
         return
     diff = datetime.datetime.utcnow() - ctx['db-underlay-last-updated']
-    if diff > float(timeout):
+    if diff.total_seconds() > float(timeout):
         # reset everything
         print("underlay older than {}, remove it now".format(timeout))
         ctx['db-underlay'] = dict()
+        ctx['db-underlay-last-updated'] = None
 
 
 def db_check_outdated_overlay(ctx):
@@ -161,10 +162,11 @@ def db_check_outdated_overlay(ctx):
     if not ctx['db-overlay-last-updated']:
         return
     diff = datetime.datetime.utcnow() - ctx['db-overlay-last-updated']
-    if diff > float(timeout):
+    if diff.total_seconds() > float(timeout):
         # reset everything
         print("overlay older than {}, remove it now".format(timeout))
         ctx['db-overlay'] = dict()
+        ctx['db-overlay-last-updated'] = None
 
 
 def db_check_outdated(ctx):
@@ -248,10 +250,50 @@ async def overlay_handle_rest_rx(request):
     return aiohttp.web.Response(body=body, content_type="application/json")
 
 
+def terminal_air_by_router_eth(data, ip_addr, proto):
+    for e in data['terminal-air-ip-list']:
+        if proto == 'v4':
+            if e['router-addr-v4'] == ip_addr:
+                return e['terminal-air-addr-v4']
+        else:
+            raise
+    return None
+
+
+
 def process_underlay_full_dynamic(ctx, data):
     warn("receive message from UNDERLAY (ohndl)\n")
-    pprint.pprint(data)
-    print("\n")
+    #pprint.pprint(data)
+    #print("\n")
+
+    # where did OHNDL instance operates off?
+    terminal_interface_name = data['terminal']['iface-name']
+
+    # ipv4 address (eth) of this terminal
+    terminal_addr_v4 = data['terminal']['ip-eth-v4']
+
+    # maximum bandwidth of this interface
+    terminal_bandwidth_max = data['terminal']['bandwidth-max']
+
+    if not terminal_interface_name in ctx['db-underlay']:
+        ctx['db-underlay'][terminal_interface_name] = dict()
+
+    for route in data['routes']:
+        prefix     = route['prefix']
+        prefix_len = route['prefix-len']
+        originator_ip_v4 = route['originator-ohndl-addr-v4']
+
+        # clean up everything, remove old ones for now
+        ctx['db-underlay'][terminal_interface_name][originator_ip_v4] = list()
+        e = dict()
+        e['prefix'] = prefix
+        e['prefix-len'] = prefix_len
+        terminal_air_ip_v4 = terminal_air_by_router_eth(data, originator_ip_v4, 'v4')
+        if None:
+            raise Exception("something is wronggggggg")
+        e['remote-terminal-air-ip-v4'] = terminal_air_ip_v4
+        ctx['db-underlay'][terminal_interface_name][originator_ip_v4].append(e)
+
     return True
 
 
