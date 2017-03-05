@@ -133,6 +133,16 @@ async def route_broadcast(ctx):
             break
     asyncio.get_event_loop().stop()
 
+async def print_routes_periodically(ctx):
+    interval = 5
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            print_routes(ctx)
+        except asyncio.CancelledError:
+            break
+    asyncio.get_event_loop().stop()
+
 
 def fwd_terminal_local_rest(url, data):
     proxy_support = urllib.request.ProxyHandler({})
@@ -234,6 +244,8 @@ def http_init(ctx, loop):
 def ctx_new(conf):
     ctx = dict()
     ctx['conf'] = conf
+    ctx['db-underlay'] = dict()
+    ctx['db-overlay'] = dict()
     return ctx
 
 
@@ -242,6 +254,7 @@ def main(conf):
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
     #asyncio.ensure_future(route_broadcast(ctx))
+    asyncio.ensure_future(print_routes_periodically(ctx))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
