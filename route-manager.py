@@ -385,7 +385,7 @@ def nft_flush_all_input(ctx):
     execute_command(cmd, suppress_output=True)
 
 
-def nft_destroy(ctx):
+def nft_destroy_default_set(ctx):
     nft_flush_all_input(ctx)
 
     # finally delete the table NFT_TABLE_NAME:
@@ -428,7 +428,7 @@ def nft_create_vanilla_set_postroute(ctx):
     execute_command(cmd, suppress_output=True)
 
 
-def nft_create(ctx):
+def nft_create_default_set(ctx):
     cmd = "nft add table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
@@ -437,25 +437,34 @@ def nft_create(ctx):
     nft_create_vanilla_set_output(ctx)
     nft_create_vanilla_set_postroute(ctx)
 
-    cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
+
+def nft_add_generic(ctx, chain_name, body):
+    cmd = "nft add rule ip {} {} {}".format(NFT_TABLE_NAME, chain_name, body)
     execute_command(cmd, suppress_output=False)
 
 
-def nft_add_generic(ctx, chain_name):
-    cmd = "nft add chain ip {} {} ".format(NFT_TABLE_NAME, chain_name)
-    cmd += "{ " + "type filter hook " + chain_name + " priority 0 ; }"
-    execute_command(cmd, suppress_output=False)
+def nft_add_all_chains_generic(ctx, body):
+    for chain in ("prerouting", "output", "postrouting"):
+        nft_add_generic(ctx, chain, body)
 
-    tos = ""
-    mark = ""
-    cmd = "nft add rule ip {} prerouting ip tos {} mark set {}".format(NFT_TABLE_NAME, tos, mark)
-    execute_command(cmd, suppress_output=False)
 
+def nft_add_configured_mark_rules(ctx):
+    for selectors in ctx["conf"]['table-selectors']:
+        rule = selectors["nft-rule"]
+        table = selectors['table']
+        mark_no = ctx['rt-map'][table]
+        nft_cmd = "{} mark set {}".format(rule, mark_no)
+        nft_add_all_chains_generic(ctx, nft_cmd)
 
 
 def init_nft_system(ctx):
-    nft_destroy(ctx)
-    nft_create(ctx)
+    nft_destroy_default_set(ctx)
+    nft_create_default_set(ctx)
+    nft_add_configured_mark_rules(ctx)
+    # print everything
+    cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+
 
 
 def setup_markers(ctx):
