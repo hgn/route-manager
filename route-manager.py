@@ -82,8 +82,14 @@ def msg(msg):
 
 
 def execute_command(command):
-    print(command)
-    return subprocess.check_output(command.split(), shell=True).decode("utf-8")
+    print("  execute \"{}\"".format(command))
+    #return subprocess.check_output(command.split(), shell=False).decode("utf-8")
+    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+    for line in p.stdout:
+        pass
+        #print(line)
+    p.wait()
+    #print(p.returncode)
 
 
 def terminal_local_rest_create_inbound_routes(ctx, next_hop):
@@ -350,6 +356,22 @@ def http_init(ctx, loop):
     loop.run_until_complete(server)
 
 
+def flush_configured_rt_tables(ctx):
+    configured_rt_tables = available_routing_tables(ctx["conf"])
+    print("clean existing routing entries")
+    for table in configured_rt_tables:
+        cmd = "ip route flush table {}".format(table)
+        execute_command(cmd)
+
+
+def init_routing_system(ctx):
+    flush_configured_rt_tables(ctx)
+
+
+def init_stack(ctx):
+    init_routing_system(ctx)
+
+
 def ctx_new(conf):
     ctx = dict()
     ctx['conf'] = conf
@@ -362,6 +384,7 @@ def ctx_new(conf):
 
 def main(conf):
     ctx = ctx_new(conf)
+    init_stack(ctx)
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
     #asyncio.ensure_future(route_broadcast(ctx))
@@ -414,6 +437,12 @@ def check_system_table_conf(tables):
         if name not in system_tables:
             err("routing table: {}, not in system table: {}\n".format(
                 name, "/etc/iproute2/rt_tables"))
+
+def available_routing_tables(conf):
+    tables = set()
+    for selectors in conf['table-selectors']:
+        tables.add(selectors['table'])
+    return tables
 
 
 def check_conf_tables(conf):
