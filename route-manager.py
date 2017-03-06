@@ -524,9 +524,10 @@ def init_stack(ctx):
     rule_system_init(ctx)
 
 
-def ctx_new(conf):
+def ctx_new(conf, args):
     ctx = dict()
     ctx['conf'] = conf
+    ctx['args'] = args
     ctx['db-underlay'] = dict()
     ctx['db-underlay-last-updated'] = None
     ctx['db-overlay'] = dict()
@@ -534,8 +535,8 @@ def ctx_new(conf):
     return ctx
 
 
-def main(conf):
-    ctx = ctx_new(conf)
+def main(conf, args):
+    ctx = ctx_new(conf, args)
     init_stack(ctx)
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
@@ -554,6 +555,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--configuration", help="configuration", type=str, default=None)
     parser.add_argument("-v", "--verbose", help="verbose", action='store_true', default=False)
+    parser.add_argument("-c", "--cinema-mode", help="show permantly routes", action='store_true', default=False)
     args = parser.parse_args()
     if not args.configuration:
         err("Configuration required, please specify a valid file path, exiting now\n")
@@ -635,7 +637,7 @@ def conf_init():
     conf = load_configuration_file(args)
     init_global_behavior(args, conf)
     check_conf(conf)
-    return conf
+    return conf, args
 
 
 def is_tool_available(name):
@@ -659,6 +661,6 @@ def check_environment(conf):
 
 if __name__ == '__main__':
     msg("Router Manager, 2017\n")
-    conf = conf_init()
+    conf, args = conf_init()
     check_environment(conf)
-    main(conf)
+    main(conf, args)
