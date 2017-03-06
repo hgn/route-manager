@@ -55,6 +55,9 @@ DEBUG_ON = False
 EXIT_OK      = 0
 EXIT_FAILURE = 1
 
+# NFT default table manager for route manager
+NFT_TABLE_NAME = "route_manager"
+
 def time_fnt():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
@@ -371,9 +374,8 @@ def flush_configured_rt_tables(ctx):
 def init_routing_system(ctx):
     flush_configured_rt_tables(ctx)
 
-NFT_TABLE_NAME = "route_manager"
 
-def nft_flush_all(ctx):
+def nft_flush_all_input(ctx):
     # Flush rules in chain route_manager/input:
     cmd = "nft flush chain ip {} input".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
@@ -382,34 +384,98 @@ def nft_flush_all(ctx):
     cmd = "nft delete chain ip {} input".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
-    # Delete the table NFT_TABLE_NAME:
+
+def nft_destroy(ctx):
+    nft_flush_all_input(ctx)
+
+    # finally delete the table NFT_TABLE_NAME:
     cmd = "nft delete table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
-
-def nft_create_vanilla_set(ctx):
-    cmd = "nft add table ip {}".format(NFT_TABLE_NAME)
+def nft_create_vanilla_set_preroute(ctx):
+    cmd = "nft add chain ip {} prerouting ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook prerouting priority 0; }"
     execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip {} prerouting counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
 
+
+def nft_create_vanilla_set_input(ctx):
     cmd = "nft add chain ip {} input ".format(NFT_TABLE_NAME)
     cmd += "{ type filter hook input priority 0; }"
     execute_command(cmd, suppress_output=True)
-
+    # account data and accept
     cmd = "nft add rule ip {} input counter accept".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
+
+
+def nft_create_vanilla_set_output(ctx):
+    cmd = "nft add chain ip {} output ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook output priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip {} output counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create_vanilla_set_postroute(ctx):
+    cmd = "nft add chain ip {} postrouting ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook postrouting priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip {} postrouting counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create(ctx):
+    cmd = "nft add table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    nft_create_vanilla_set_input(ctx)
+    nft_create_vanilla_set_preroute(ctx)
+    nft_create_vanilla_set_output(ctx)
+    nft_create_vanilla_set_postroute(ctx)
 
     cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=False)
 
 
+def nft_add_generic(ctx, chain_name):
+    cmd = "nft add chain ip {} {} ".format(NFT_TABLE_NAME, chain_name)
+    cmd += "{ " + "type filter hook " + chain_name + " priority 0 ; }"
+    execute_command(cmd, suppress_output=False)
+
+    tos = ""
+    mark = ""
+    cmd = "nft add rule ip {} prerouting ip tos {} mark set {}".format(NFT_TABLE_NAME, tos, mark)
+    execute_command(cmd, suppress_output=False)
+
+
+
 def init_nft_system(ctx):
-    nft_flush_all(ctx)
-    nft_create_vanilla_set(ctx)
+    nft_destroy(ctx)
+    nft_create(ctx)
 
 
+def setup_markers(ctx):
+    """ based in the available tables we generate n different marks (1, 2, 3)
+        later we can map from name (lowest_latency) to a mark and vice versa
+        """
+    ctx['rt-map'] = dict()
+    ctx['rt-map-reverse'] = dict()
+    base_mark = 0x1000
+    policy_routes = available_routing_tables(ctx["conf"])
+    print("prepase numerical marker/routing-table mapping:")
+    for route in policy_routes:
+        print("  {} <-> 0x{:02X}".format(route, base_mark))
+        ctx['rt-map'][route] = base_mark
+        ctx['rt-map-reverse'][route] = base_mark
+        base_mark += 1
 
 
 def init_stack(ctx):
+    setup_markers(ctx)
     init_routing_system(ctx)
     init_nft_system(ctx)
 
