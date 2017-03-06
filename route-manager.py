@@ -492,18 +492,27 @@ def rule_system_cleanup(ctx):
 
 
 def rule_system_set_configured(ctx):
-    # this splices firewall marking and policy routes together
-    rule_priority = 1
+    # this splices firewall marking and policy routes together,
+    # routes with lower priorities are preferred
+    print("Splice nft rules and policy routes")
+    rule_priority = 1000
     for name, mark_no in ctx['rt-map'].items():
         cmd = 'ip rule add fwmark {} priority {} table {}'
         cmd = cmd.format(mark_no, rule_priority, name)
         execute_command(cmd, suppress_output=False)
 
+    print("Set default rule (higher preference than main/default!)")
+    rule_priority = 2000
+    default_table = ctx['conf']["default-table"]
+    cmd = 'ip rule add priority {} table {}'
+    cmd = cmd.format(rule_priority, default_table)
+    execute_command(cmd, suppress_output=False)
+
+
 
 def rule_system_init(ctx):
     rule_system_cleanup(ctx)
     rule_system_set_configured(ctx)
-    print("Splice nft rules and policy routes:")
     cmd = 'ip rule list'
     execute_command(cmd, suppress_output=False)
 
