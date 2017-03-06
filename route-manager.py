@@ -493,10 +493,10 @@ def rule_system_cleanup(ctx):
 
 def rule_system_set_configured(ctx):
     # this splices firewall marking and policy routes together
-    for selectors in ctx["conf"]['table-selectors']:
-        table = selectors['table']
-        mark_no = ctx['rt-map'][table]
-        cmd = 'ip rule add fwmark {} table {}'.format(mark_no, table)
+    rule_priority = 1
+    for name, mark_no in ctx['rt-map'].items():
+        cmd = 'ip rule add fwmark {} priority {} table {}'
+        cmd = cmd.format(mark_no, rule_priority, name)
         execute_command(cmd, suppress_output=False)
 
 
