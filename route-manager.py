@@ -638,7 +638,27 @@ def conf_init():
     return conf
 
 
+def is_tool_available(name):
+    try:
+        devnull = open(os.devnull)
+        subprocess.Popen([name], stdout=devnull, stderr=devnull).communicate()
+    except OSError as e:
+        if e.errno == os.errno.ENOENT:
+            return False
+    return True
+
+
+def check_environment(conf):
+    apps = [["nft", "nftables"], ['ip', 'iproute2'] ]
+    for app in apps:
+        available = is_tool_available(app[0])
+        if not available:
+            print("{} not available, install {}, bye".format(app[0], app[1]))
+            sys.exit(EXIT_FAILURE)
+
+
 if __name__ == '__main__':
     msg("Router Manager, 2017\n")
     conf = conf_init()
+    check_environment(conf)
     main(conf)
