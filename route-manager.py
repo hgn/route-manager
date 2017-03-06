@@ -461,7 +461,6 @@ def init_nft_system(ctx):
     nft_destroy_default_set(ctx)
     nft_create_default_set(ctx)
     nft_add_configured_mark_rules(ctx)
-    # print everything
     cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=False)
 
@@ -483,10 +482,20 @@ def setup_markers(ctx):
         base_mark += 1
 
 
+def init_rule_system(ctx):
+    cmd = 'sudo ip rule flush'
+    execute_command(cmd, suppress_output=False)
+    cmd = 'sudo ip rule add from 0/0 priority 32766 table main'
+    execute_command(cmd, suppress_output=False)
+    cmd = 'sudo ip rule add from 0/0 priority 32767 table default'
+    execute_command(cmd, suppress_output=False)
+
+
 def init_stack(ctx):
     setup_markers(ctx)
     init_routing_system(ctx)
     init_nft_system(ctx)
+    init_rule_system(ctx)
 
 
 def ctx_new(conf):

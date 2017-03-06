@@ -53,10 +53,10 @@
 	"default-table" : "lowest_latency",
 
 	"table-selectors" : [
-		{ "nft-rule" : "tcp dport 80",   "table" : "lowest_latency" },
-		{ "nft-rule" : "tcp sport 2000", "table" : "highest_bandwidth" },
-		{ "nft-rule" : "ip tos 30",         "table" : "highest_bandwidth" },
-		{ "nft-rule" : "ip tos 31",         "table" : "highest_bandwidth" },
+		{ "nft-rule" : "tcp dport 80",     "table" : "lowest_latency" },
+		{ "nft-rule" : "tcp sport 2000",   "table" : "highest_bandwidth" },
+		{ "nft-rule" : "ip tos 30",        "table" : "highest_bandwidth" },
+		{ "nft-rule" : "ip tos 31",        "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip daddr 8.8.8.8", "table" : "lowest_latency" }
 	]
 }
