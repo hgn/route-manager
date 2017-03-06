@@ -482,7 +482,7 @@ def setup_markers(ctx):
         base_mark += 1
 
 
-def init_rule_system(ctx):
+def rule_system_cleanup(ctx):
     cmd = 'sudo ip rule flush'
     execute_command(cmd, suppress_output=False)
     cmd = 'sudo ip rule add from 0/0 priority 32766 table main'
@@ -491,11 +491,28 @@ def init_rule_system(ctx):
     execute_command(cmd, suppress_output=False)
 
 
+def rule_system_set_configured(ctx):
+    # this splices firewall marking and policy routes together
+    for selectors in ctx["conf"]['table-selectors']:
+        table = selectors['table']
+        mark_no = ctx['rt-map'][table]
+        cmd = 'ip rule add fwmark {} table {}'.format(mark_no, table)
+        execute_command(cmd, suppress_output=False)
+
+
+def rule_system_init(ctx):
+    rule_system_cleanup(ctx)
+    rule_system_set_configured(ctx)
+    print("Splice nft rules and policy routes:")
+    cmd = 'ip rule list'
+    execute_command(cmd, suppress_output=False)
+
+
 def init_stack(ctx):
     setup_markers(ctx)
     init_routing_system(ctx)
     init_nft_system(ctx)
-    init_rule_system(ctx)
+    rule_system_init(ctx)
 
 
 def ctx_new(conf):
