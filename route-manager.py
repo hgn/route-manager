@@ -148,7 +148,7 @@ async def route_broadcast(ctx):
 
 
 def print_routes_underlay(ctx):
-    print("UNDERLAY routes")
+    print("Underlay routes:")
     for interface_name, interface_data in ctx['db-underlay'].items():
         for originator_ip_v4, routes in interface_data.items():
             for route in routes:
@@ -160,14 +160,19 @@ def print_routes_underlay(ctx):
 
 
 def print_routes_overlay(ctx):
-    pass
+    print("Overlay routes:")
+
 
 def print_routes(ctx):
+    if ctx['args'].cinema: print("\033c")
     print_routes_underlay(ctx)
     print_routes_overlay(ctx)
 
+
 async def print_routes_periodically(ctx):
-    interval = 1
+    interval = 10
+    if ctx['args'].cinema:
+        interval = .5
     while True:
         try:
             await asyncio.sleep(interval)
@@ -555,7 +560,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--configuration", help="configuration", type=str, default=None)
     parser.add_argument("-v", "--verbose", help="verbose", action='store_true', default=False)
-    parser.add_argument("-c", "--cinema-mode", help="show permantly routes", action='store_true', default=False)
+    parser.add_argument("-c", "--cinema-mode", help="show permantly routes", action='store_true',
+                        default=False, dest="cinema")
     args = parser.parse_args()
     if not args.configuration:
         err("Configuration required, please specify a valid file path, exiting now\n")
