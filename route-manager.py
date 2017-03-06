@@ -81,15 +81,19 @@ def msg(msg):
     sys.stdout.write(msg)
 
 
-def execute_command(command):
+def execute_command(command, suppress_output=False):
     print("  execute \"{}\"".format(command))
-    #return subprocess.check_output(command.split(), shell=False).decode("utf-8")
-    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
-    for line in p.stdout:
-        pass
-        #print(line)
+    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if not suppress_output:
+        lines = err.decode("utf-8")
+        for line in lines.splitlines():
+            sys.stderr.write("    {}\n".format(line))
+        sys.stderr.write(err.decode("utf-8"))
+        lines = out.decode("utf-8")
+        for line in lines.splitlines():
+            sys.stderr.write("    {}\n".format(line))
     p.wait()
-    #print(p.returncode)
 
 
 def terminal_local_rest_create_inbound_routes(ctx, next_hop):
@@ -367,9 +371,47 @@ def flush_configured_rt_tables(ctx):
 def init_routing_system(ctx):
     flush_configured_rt_tables(ctx)
 
+NFT_TABLE_NAME = "route_manager"
+
+def nft_flush_all(ctx):
+    # Flush rules in chain route_manager/input:
+    cmd = "nft flush chain ip {} input".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    # Delete the chain NFT_TABLE_NAME/input:
+    cmd = "nft delete chain ip {} input".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    # Delete the table NFT_TABLE_NAME:
+    cmd = "nft delete table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create_vanilla_set(ctx):
+    cmd = "nft add table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    cmd = "nft add chain ip {} input ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook input priority 0; }"
+    execute_command(cmd, suppress_output=True)
+
+    cmd = "nft add rule ip {} input counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+
+
+def init_nft_system(ctx):
+    nft_flush_all(ctx)
+    nft_create_vanilla_set(ctx)
+
+
+
 
 def init_stack(ctx):
     init_routing_system(ctx)
+    init_nft_system(ctx)
 
 
 def ctx_new(conf):
