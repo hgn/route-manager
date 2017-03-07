@@ -575,7 +575,7 @@ def nft_add_configured_mark_rules(ctx):
     for selector in ctx["conf"]['table-selectors']:
         if "nft-rule" in selector:
             nft_add_configured_mark_rules_v4(ctx, selector)
-        else "nft6-rule" in selector:
+        elif "nft6-rule" in selector:
             nft_add_configured_mark_rules_v6(ctx, selector)
         else:
             assert(False)
@@ -592,6 +592,7 @@ def nft_system_init(ctx):
     nft_destroy_default_set(ctx)
     nft_create_default_set(ctx)
     nft_add_configured_mark_rules(ctx)
+    nft_show_all(ctx)
 
 
 def setup_markers(ctx):
