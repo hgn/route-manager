@@ -187,14 +187,14 @@ def route_configure_local(ctx, route):
 
 def route_configure_remote_rest(ctx, iface_name, iface_data, route):
     url = iface_data["type-data"]["url-set-routes"]
-    assert(True)
+    assert(False)
 
 
 def route_configure_remote(ctx, iface_name, iface_data, route):
     if iface_data["type"] == "terminal-local-rest":
         route_configure_remote_rest(ctx, iface_name, iface_data, route)
     else:
-        assert(True)
+        assert(False)
 
 
 def route_configure_remote(ctx, iface, route):
@@ -202,7 +202,7 @@ def route_configure_remote(ctx, iface, route):
         if iface_data["name"] != iface_name:
             continue
         return route_configure_remote(ctx, ifaace_name, iface_data, route)
-    assert(True)
+    assert(False)
 
 
 def db_check_outdated_underlay(ctx):
@@ -403,34 +403,42 @@ def init_routing_system(ctx):
     flush_configured_rt_tables(ctx)
 
 
-def nft_flush_all_input(ctx):
+def nft_flush_all_input_v4(ctx):
     # Flush rules in chain route_manager/input:
     cmd = "nft flush chain ip {} input".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
-
     # Delete the chain NFT_TABLE_NAME/input:
     cmd = "nft delete chain ip {} input".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
 
-def nft_destroy_default_set(ctx):
-    nft_flush_all_input(ctx)
+def nft_flush_all_input_v6(ctx):
+    # Flush rules in chain route_manager/input:
+    cmd = "nft flush chain ip6 {} input".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+    # Delete the chain NFT_TABLE_NAME/input:
+    cmd = "nft delete chain ip6 {} input".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
 
+def nft_destroy_default_set_v4(ctx):
+    nft_flush_all_input_v4(ctx)
     # finally delete the table NFT_TABLE_NAME:
     cmd = "nft delete table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
-
-def nft_create_vanilla_set_preroute(ctx):
-    cmd = "nft add chain ip {} prerouting ".format(NFT_TABLE_NAME)
-    cmd += "{ type filter hook prerouting priority 0; }"
+def nft_destroy_default_set_v6(ctx):
+    nft_flush_all_input_v6(ctx)
+    # finally delete the table NFT_TABLE_NAME:
+    cmd = "nft delete table ip6 {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
-    # account data and accept
-    cmd = "nft add rule ip {} prerouting counter accept".format(NFT_TABLE_NAME)
-    execute_command(cmd, suppress_output=False)
 
 
-def nft_create_vanilla_set_input(ctx):
+def nft_destroy_default_set(ctx):
+    nft_destroy_default_set_v4(ctx)
+    nft_destroy_default_set_v6(ctx)
+
+
+def nft_create_vanilla_set_input_v4(ctx):
     cmd = "nft add chain ip {} input ".format(NFT_TABLE_NAME)
     cmd += "{ type filter hook input priority 0; }"
     execute_command(cmd, suppress_output=True)
@@ -439,7 +447,16 @@ def nft_create_vanilla_set_input(ctx):
     execute_command(cmd, suppress_output=True)
 
 
-def nft_create_vanilla_set_output(ctx):
+def nft_create_vanilla_set_preroute_v4(ctx):
+    cmd = "nft add chain ip {} prerouting ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook prerouting priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip {} prerouting counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+
+
+def nft_create_vanilla_set_output_v4(ctx):
     cmd = "nft add chain ip {} output ".format(NFT_TABLE_NAME)
     cmd += "{ type filter hook output priority 0; }"
     execute_command(cmd, suppress_output=True)
@@ -448,7 +465,7 @@ def nft_create_vanilla_set_output(ctx):
     execute_command(cmd, suppress_output=True)
 
 
-def nft_create_vanilla_set_postroute(ctx):
+def nft_create_vanilla_set_postroute_v4(ctx):
     cmd = "nft add chain ip {} postrouting ".format(NFT_TABLE_NAME)
     cmd += "{ type filter hook postrouting priority 0; }"
     execute_command(cmd, suppress_output=True)
@@ -457,46 +474,124 @@ def nft_create_vanilla_set_postroute(ctx):
     execute_command(cmd, suppress_output=True)
 
 
-def nft_create_default_set(ctx):
+def nft_create_default_set_v4(ctx):
     cmd = "nft add table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
 
-    nft_create_vanilla_set_input(ctx)
-    nft_create_vanilla_set_preroute(ctx)
-    nft_create_vanilla_set_output(ctx)
-    nft_create_vanilla_set_postroute(ctx)
+    nft_create_vanilla_set_input_v4(ctx)
+    nft_create_vanilla_set_preroute_v4(ctx)
+    nft_create_vanilla_set_output_v4(ctx)
+    nft_create_vanilla_set_postroute_v4(ctx)
 
 
-def nft_add_generic(ctx, chain_name, body):
+def nft_create_vanilla_set_input_v6(ctx):
+    cmd = "nft add chain ip6 {} input ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook input priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip6 {} input counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create_vanilla_set_preroute_v6(ctx):
+    cmd = "nft add chain ip6 {} prerouting ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook prerouting priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip6 {} prerouting counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+
+
+def nft_create_vanilla_set_output_v6(ctx):
+    cmd = "nft add chain ip6 {} output ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook output priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip6 {} output counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create_vanilla_set_postroute_v6(ctx):
+    cmd = "nft add chain ip6 {} postrouting ".format(NFT_TABLE_NAME)
+    cmd += "{ type filter hook postrouting priority 0; }"
+    execute_command(cmd, suppress_output=True)
+    # account data and accept
+    cmd = "nft add rule ip6 {} postrouting counter accept".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+
+def nft_create_default_set_v6(ctx):
+    cmd = "nft add table ip6 {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=True)
+
+    nft_create_vanilla_set_input_v6(ctx)
+    nft_create_vanilla_set_preroute_v6(ctx)
+    nft_create_vanilla_set_output_v6(ctx)
+    nft_create_vanilla_set_postroute_v6(ctx)
+
+
+def nft_create_default_set(ctx):
+    nft_create_default_set_v4(ctx)
+    nft_create_default_set_v6(ctx)
+
+
+def nft_add_generic_v4(ctx, chain_name, body):
     cmd = "nft add rule ip {} {} {}".format(NFT_TABLE_NAME, chain_name, body)
     execute_command(cmd, suppress_output=False)
 
 
-def nft_add_all_chains_generic(ctx, body):
+def nft_add_generic_v6(ctx, chain_name, body):
+    cmd = "nft add rule ip6 {} {} {}".format(NFT_TABLE_NAME, chain_name, body)
+    execute_command(cmd, suppress_output=False)
+
+
+def nft_add_all_chains_generic_v4(ctx, body):
     for chain in ("prerouting", "output", "postrouting"):
-        nft_add_generic(ctx, chain, body)
+        nft_add_generic_v4(ctx, chain, body)
+
+
+def nft_add_all_chains_generic_v6(ctx, body):
+    for chain in ("prerouting", "output", "postrouting"):
+        nft_add_generic_v6(ctx, chain, body)
+
 
 def nft_add_configured_mark_rules_v4(ctx, selector):
     rule = selector["nft-rule"]
     table = selector['table']
     mark_no = ctx['rt-map'][table]
     nft_cmd = "{} mark set {}".format(rule, mark_no)
-    nft_add_all_chains_generic(ctx, nft_cmd)
+    nft_add_all_chains_generic_v4(ctx, nft_cmd)
+
+
+def nft_add_configured_mark_rules_v6(ctx, selector):
+    rule = selector["nft6-rule"]
+    table = selector['table']
+    mark_no = ctx['rt-map'][table]
+    nft_cmd = "{} mark set {}".format(rule, mark_no)
+    nft_add_all_chains_generic_v6(ctx, nft_cmd)
 
 
 def nft_add_configured_mark_rules(ctx):
     for selector in ctx["conf"]['table-selectors']:
         if "nft-rule" in selector:
             nft_add_configured_mark_rules_v4(ctx, selector)
+        else "nft6-rule" in selector:
+            nft_add_configured_mark_rules_v6(ctx, selector)
+        else:
+            assert(False)
 
 
-def init_nft_system(ctx):
+def nft_show_all(ctx):
+    cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+    cmd = "nft list table ip6 {}".format(NFT_TABLE_NAME)
+    execute_command(cmd, suppress_output=False)
+
+
+def nft_system_init(ctx):
     nft_destroy_default_set(ctx)
     nft_create_default_set(ctx)
     nft_add_configured_mark_rules(ctx)
-    cmd = "nft list table ip {}".format(NFT_TABLE_NAME)
-    execute_command(cmd, suppress_output=False)
-
 
 
 def setup_markers(ctx):
@@ -571,6 +666,7 @@ def rule_system_set_configured_v6(ctx):
     cmd = cmd.format(rule_priority, default_table)
     execute_command(cmd, suppress_output=False)
 
+
 def rule_system_set_configured(ctx):
     rule_system_set_configured_v4(ctx)
     rule_system_set_configured_v6(ctx)
@@ -594,7 +690,7 @@ def rule_system_init(ctx):
 def init_stack(ctx):
     setup_markers(ctx)
     init_routing_system(ctx)
-    init_nft_system(ctx)
+    nft_system_init(ctx)
     rule_system_init(ctx)
 
 
