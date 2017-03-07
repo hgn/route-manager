@@ -53,6 +53,8 @@
 	"default-table" : "lowest_latency",
 
 	"table-selectors" : [
+		{ "nft6-rule" : "tcp dport 80",                             "table" : "lowest_latency" },
+
 		{ "nft-rule" : "tcp dport 80",                              "table" : "lowest_latency" },
 		{ "nft-rule" : "tcp sport 2000",                            "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip dscp != 0x20",                           "table" : "highest_bandwidth" },

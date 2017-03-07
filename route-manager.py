@@ -476,14 +476,18 @@ def nft_add_all_chains_generic(ctx, body):
     for chain in ("prerouting", "output", "postrouting"):
         nft_add_generic(ctx, chain, body)
 
+def nft_add_configured_mark_rules_v4(ctx, selector):
+    rule = selector["nft-rule"]
+    table = selector['table']
+    mark_no = ctx['rt-map'][table]
+    nft_cmd = "{} mark set {}".format(rule, mark_no)
+    nft_add_all_chains_generic(ctx, nft_cmd)
+
 
 def nft_add_configured_mark_rules(ctx):
-    for selectors in ctx["conf"]['table-selectors']:
-        rule = selectors["nft-rule"]
-        table = selectors['table']
-        mark_no = ctx['rt-map'][table]
-        nft_cmd = "{} mark set {}".format(rule, mark_no)
-        nft_add_all_chains_generic(ctx, nft_cmd)
+    for selector in ctx["conf"]['table-selectors']:
+        if "nft-rule" in selector:
+            nft_add_configured_mark_rules_v4(ctx, selector)
 
 
 def init_nft_system(ctx):
@@ -512,11 +516,11 @@ def setup_markers(ctx):
 
 
 def rule_system_cleanup(ctx):
-    cmd = 'sudo ip rule flush'
+    cmd = 'sudo ip -4 rule flush'
     execute_command(cmd, suppress_output=False)
-    cmd = 'sudo ip rule add from 0/0 priority 32766 table main'
+    cmd = 'sudo ip -4 rule add from 0/0 priority 32766 table main'
     execute_command(cmd, suppress_output=False)
-    cmd = 'sudo ip rule add from 0/0 priority 32767 table default'
+    cmd = 'sudo ip -4 rule add from 0/0 priority 32767 table default'
     execute_command(cmd, suppress_output=False)
 
 
@@ -526,14 +530,14 @@ def rule_system_set_configured(ctx):
     print("Splice nft rules and policy routes")
     rule_priority = 1000
     for name, mark_no in ctx['rt-map'].items():
-        cmd = 'ip rule add fwmark {} priority {} table {}'
+        cmd = 'ip -4 rule add fwmark {} priority {} table {}'
         cmd = cmd.format(mark_no, rule_priority, name)
         execute_command(cmd, suppress_output=False)
 
     print("Set default rule (higher preference than main/default!)")
     rule_priority = 2000
     default_table = ctx['conf']["default-table"]
-    cmd = 'ip rule add priority {} table {}'
+    cmd = 'ip -4 rule add priority {} table {}'
     cmd = cmd.format(rule_priority, default_table)
     execute_command(cmd, suppress_output=False)
 
@@ -542,7 +546,7 @@ def rule_system_set_configured(ctx):
 def rule_system_init(ctx):
     rule_system_cleanup(ctx)
     rule_system_set_configured(ctx)
-    cmd = 'ip rule list'
+    cmd = 'ip -4 rule list'
     execute_command(cmd, suppress_output=False)
 
 
@@ -622,6 +626,7 @@ def check_system_table_conf(tables):
             err("routing table: {}, not in system table: {}\n".format(
                 name, "/etc/iproute2/rt_tables"))
 
+
 def available_routing_tables(conf):
     tables = set()
     for selectors in conf['table-selectors']:
@@ -688,12 +693,14 @@ def check_environment(conf):
             print("{} not available, install {}, bye".format(app[0], app[1]))
             sys.exit(EXIT_FAILURE)
 
+
 def check_priviledges():
     if os.geteuid() != 0:
         msg  = "You need to have root privileges to run this program.\n"
         msg += "Exiting. So sooory"
         print(msg)
         sys.exit(EXIT_FAILURE)
+
 
 if __name__ == '__main__':
     msg("Router Manager, 2017\n")
