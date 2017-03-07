@@ -688,9 +688,16 @@ def check_environment(conf):
             print("{} not available, install {}, bye".format(app[0], app[1]))
             sys.exit(EXIT_FAILURE)
 
+def check_priviledges():
+    if os.geteuid() != 0:
+        msg  = "You need to have root privileges to run this program.\n"
+        msg += "Exiting. So sooory"
+        print(msg)
+        sys.exit(EXIT_FAILURE)
 
 if __name__ == '__main__':
     msg("Router Manager, 2017\n")
+    check_priviledges()
     conf, args = conf_init()
     check_environment(conf)
     main(conf, args)
