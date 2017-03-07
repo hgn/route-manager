@@ -823,13 +823,33 @@ def is_tool_available(name):
     return True
 
 
-def check_environment(conf):
+def check_applications(conf):
     apps = [["nft", "nftables"], ['ip', 'iproute2'] ]
     for app in apps:
         available = is_tool_available(app[0])
         if not available:
             print("{} not available, install {}, bye".format(app[0], app[1]))
             sys.exit(EXIT_FAILURE)
+
+def proc_file_expect(path, number, err_text):
+    with open(path) as fd:
+            data = fd.read()
+            if int(data) != number:
+                print("{} [{}]".format(err_text, path))
+                print("try \"echo {} | sudo tee {}\"".format(number, path))
+                sys.exit(EXIT_FAILURE)
+
+
+def check_forwarding(conf):
+    path = "/proc/sys/net/ipv4/ip_forward"
+    proc_file_expect(path, 1, "No IPv4 forwarding enabled")
+    path = "/proc/sys/net/ipv6/conf/all/forwarding"
+    proc_file_expect(path, 1, "No IPv6 forwarding enabled")
+
+
+def check_environment(conf):
+    check_applications(conf)
+    check_forwarding(conf)
 
 
 def check_priviledges():
