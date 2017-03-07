@@ -514,8 +514,7 @@ def setup_markers(ctx):
         ctx['rt-map-reverse'][route] = base_mark
         base_mark += 1
 
-
-def rule_system_cleanup(ctx):
+def rule_system_cleanup_v4(ctx):
     cmd = 'sudo ip -4 rule flush'
     execute_command(cmd, suppress_output=False)
     cmd = 'sudo ip -4 rule add from 0/0 priority 32766 table main'
@@ -524,17 +523,30 @@ def rule_system_cleanup(ctx):
     execute_command(cmd, suppress_output=False)
 
 
-def rule_system_set_configured(ctx):
+def rule_system_cleanup_v6(ctx):
+    cmd = 'sudo ip -6 rule flush'
+    execute_command(cmd, suppress_output=False)
+    cmd = 'sudo ip -6 rule add from ::/0 priority 32766 table main'
+    execute_command(cmd, suppress_output=False)
+    cmd = 'sudo ip -6 rule add from ::/0 priority 32767 table default'
+    execute_command(cmd, suppress_output=False)
+
+def rule_system_cleanup(ctx):
+    rule_system_cleanup_v4(ctx)
+    rule_system_cleanup_v6(ctx)
+
+
+def rule_system_set_configured_v4(ctx):
     # this splices firewall marking and policy routes together,
     # routes with lower priorities are preferred
-    print("Splice nft rules and policy routes")
+    print("Splice nft rules and policy routes for IPv4")
     rule_priority = 1000
     for name, mark_no in ctx['rt-map'].items():
         cmd = 'ip -4 rule add fwmark {} priority {} table {}'
         cmd = cmd.format(mark_no, rule_priority, name)
         execute_command(cmd, suppress_output=False)
 
-    print("Set default rule (higher preference than main/default!)")
+    print("Set default IPv4 rule (higher preference than main/default!)")
     rule_priority = 2000
     default_table = ctx['conf']["default-table"]
     cmd = 'ip -4 rule add priority {} table {}'
@@ -542,12 +554,41 @@ def rule_system_set_configured(ctx):
     execute_command(cmd, suppress_output=False)
 
 
+def rule_system_set_configured_v6(ctx):
+    # this splices firewall marking and policy routes together,
+    # routes with lower priorities are preferred
+    print("Splice nft rules and policy routes for IPv6")
+    rule_priority = 1000
+    for name, mark_no in ctx['rt-map'].items():
+        cmd = 'ip -6 rule add fwmark {} priority {} table {}'
+        cmd = cmd.format(mark_no, rule_priority, name)
+        execute_command(cmd, suppress_output=False)
+
+    print("Set default IPv6 rule (higher preference than main/default!)")
+    rule_priority = 2000
+    default_table = ctx['conf']["default-table"]
+    cmd = 'ip -6 rule add priority {} table {}'
+    cmd = cmd.format(rule_priority, default_table)
+    execute_command(cmd, suppress_output=False)
+
+def rule_system_set_configured(ctx):
+    rule_system_set_configured_v4(ctx)
+    rule_system_set_configured_v6(ctx)
+
+
+def rule_system_show(ctx):
+    print("Ruleset IPv4:")
+    cmd = 'ip -4 rule list'
+    execute_command(cmd, suppress_output=False)
+    print("Ruleset IPv6:")
+    cmd = 'ip -6 rule list'
+    execute_command(cmd, suppress_output=False)
+
 
 def rule_system_init(ctx):
     rule_system_cleanup(ctx)
     rule_system_set_configured(ctx)
-    cmd = 'ip -4 rule list'
-    execute_command(cmd, suppress_output=False)
+    rule_system_show(ctx)
 
 
 def init_stack(ctx):
