@@ -86,7 +86,7 @@ def msg(msg):
 
 def execute_command(command, suppress_output=False):
     print("  execute \"{}\"".format(command))
-    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
     out, err = p.communicate()
     if not suppress_output:
         lines = err.decode("utf-8")
@@ -158,7 +158,6 @@ def print_routes_underlay(ctx):
                 print(msg)
 
 
-
 def print_routes_overlay(ctx):
     print("Overlay routes:")
 
@@ -180,6 +179,30 @@ async def print_routes_periodically(ctx):
         except asyncio.CancelledError:
             break
     asyncio.get_event_loop().stop()
+
+
+def route_configure_local(ctx, route):
+    pass
+
+
+def route_configure_remote_rest(ctx, iface_name, iface_data, route):
+    url = iface_data["type-data"]["url-set-routes"]
+    assert(True)
+
+
+def route_configure_remote(ctx, iface_name, iface_data, route):
+    if iface_data["type"] == "terminal-local-rest":
+        route_configure_remote_rest(ctx, iface_name, iface_data, route)
+    else:
+        assert(True)
+
+
+def route_configure_remote(ctx, iface, route):
+    for iface_data in ctx["conf"]["interfaces"]:
+        if iface_data["name"] != iface_name:
+            continue
+        return route_configure_remote(ctx, ifaace_name, iface_data, route)
+    assert(True)
 
 
 def db_check_outdated_underlay(ctx):
@@ -396,6 +419,7 @@ def nft_destroy_default_set(ctx):
     # finally delete the table NFT_TABLE_NAME:
     cmd = "nft delete table ip {}".format(NFT_TABLE_NAME)
     execute_command(cmd, suppress_output=True)
+
 
 def nft_create_vanilla_set_preroute(ctx):
     cmd = "nft add chain ip {} prerouting ".format(NFT_TABLE_NAME)
