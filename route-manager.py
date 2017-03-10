@@ -831,13 +831,15 @@ def check_applications(conf):
             print("{} not available, install {}, bye".format(app[0], app[1]))
             sys.exit(EXIT_FAILURE)
 
-def proc_file_expect(path, number, err_text):
+def proc_file_expect(path, number, err_text, exit_if_true=True):
     with open(path) as fd:
             data = fd.read()
             if int(data) != number:
                 print("{} [{}]".format(err_text, path))
                 print("try \"echo {} | sudo tee {}\"".format(number, path))
-                sys.exit(EXIT_FAILURE)
+                if exit_if_true:
+                    sys.exit(EXIT_FAILURE)
+                sleep(2)
 
 
 def check_forwarding(conf):
@@ -847,9 +849,17 @@ def check_forwarding(conf):
     proc_file_expect(path, 1, "No IPv6 forwarding enabled")
 
 
+def check_filters(conf):
+    path = "net.ipv4.conf.all.rp_filter"
+    proc_file_expect(path, 2, "reverse-path filter should be loose", exit_if_true=False)
+    path = "net.ipv4.conf.all.log_martians"
+    proc_file_expect(path, 2, "log martians should be enabled in integration period", exit_if_true=False)
+
+
 def check_environment(conf):
     check_applications(conf)
     check_forwarding(conf)
+    check_filters(conf)
 
 
 def check_priviledges():
@@ -858,10 +868,6 @@ def check_priviledges():
         msg += "Exiting. So sooory"
         print(msg)
         sys.exit(EXIT_FAILURE)
-
-
-def check_environment(conf):
-    check_tools()
 
 
 if __name__ == '__main__':
