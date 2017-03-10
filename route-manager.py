@@ -860,6 +860,10 @@ def check_priviledges():
         sys.exit(EXIT_FAILURE)
 
 
+def check_environment(conf):
+    check_tools()
+
+
 if __name__ == '__main__':
     msg("Router Manager, 2017\n")
     check_priviledges()
