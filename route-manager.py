@@ -676,7 +676,7 @@ def nft_system_init(ctx):
 
 def setup_markers(ctx):
     """ based in the available tables we generate n different marks (1, 2, 3)
-        later we can map from name (lowest_latency) to a mark and vice versa
+        later we can map from name (lowest_loss) to a mark and vice versa
         """
     ctx['rt-map'] = dict()
     ctx['rt-map-reverse'] = dict()
