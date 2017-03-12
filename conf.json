@@ -1,6 +1,5 @@
 {
 	"common" : {
-		"debug" : false,
 		"v4_listen_addr" : "0.0.0.0",
 		"v4_listen_port" : "16001",
 
@@ -67,5 +66,10 @@
 		{ "nft-rule" : "ip daddr { 192.168.0.1-192.168.0.250 }",    "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip daddr != { 192.168.0.1-192.168.0.250 }", "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip daddr 8.8.8.8",                          "table" : "lowest_latency" }
-	]
+	],
+
+	"logging" : {
+		"level" : "debug"
+	}
+
 }

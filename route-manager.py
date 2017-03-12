@@ -12,6 +12,7 @@ import argparse
 import pprint
 import subprocess
 import urllib.request
+import logging
 
 class DSCP:
     IPTOS_LOWDELAY = 0x10
@@ -45,6 +46,8 @@ class DSCP:
 
     EF = 0xb8
 
+
+log = logging.getLogger()
 
 
 # default false, can be changed via program arguments (-v)
@@ -160,6 +163,12 @@ def print_routes_underlay(ctx):
 
 def print_routes_overlay(ctx):
     print("Overlay routes:")
+    for route in ctx['db-overlay']:
+        ipfull   = "{}/{}".format(route['prefix'], route['prefix-len'])
+        iface    = route['interface']
+        next_hop = route['next-hop']
+        info = "{} via {} at {}".format(ipfull, next_hop, iface)
+        print(route)
 
 
 def print_routes(ctx):
@@ -225,7 +234,7 @@ def db_check_outdated_overlay(ctx):
     if diff.total_seconds() > float(timeout):
         # reset everything
         print("overlay older than {}, remove it now".format(timeout))
-        ctx['db-overlay'] = dict()
+        ctx['db-overlay'] = list()
         ctx['db-overlay-last-updated'] = None
 
 
@@ -271,25 +280,96 @@ def fwd_terminal_local_rest(url, data):
     except urllib.error.URLError as e:
         print("Connection error: {}".format(e))
 
+def overlay_purge(ctx):
+    # remove old entry because DMPR will always send
+    # us the complete routes
+    ctx['db-overlay'] = list()
 
-def process_overlay_full_dynamic(ctx, data):
-    warn("receive message from OVERERLAY (DMPRD)\n")
-    if not 'route-tables' in data:
-        warn("message seems corrupt, no route-tables in data\n")
-        return False
-    tables = data['route-tables']
-    print("\n")
-    for table_name, table_list in tables.items():
-        print("{}  table: {}".format(time_fnt(), table_name))
-        for table_item in table_list:
+
+def overlay_add_new(ctx, tables):
+    # return true when the data was valid in some
+    # ways, just to inform the caller if the syntax
+    # is not correct, corrupt, ...
+    for route_entry in tables:
+        #print("{}  table: {}".format(time_fnt(), table_name))
             # {'prefix-len': '24', 'proto': 'v4', 'prefix': '44.101.177.0',
             # 'interface': 'wifi0', 'next-hop': '10.10.10.140'}
-            ipfull = "{}/{}".format(table_item['prefix'], table_item['prefix-len'])
-            iface = table_item['interface']
-            next_hop = table_item['next-hop']
-            info = "{} via {} at {}".format(ipfull, next_hop, iface)
-            print("  {}".format(info))
+            # sanity check now
+        if not all (k in route_entry for k in ("prefix", "prefix-len", 'interface', 'next-hop', 'table-name')):
+            log.error("packet from DMPR corrupt: {}".format(route_entry))
+            return False
+        ctx['db-overlay'].append(route_entry)
+        ctx['db-overlay-last-updated'] = datetime.datetime.utcnow()
     return True
+
+
+def execute_route_flush_v4(ctx, table=None):
+    cmd = "ip -4 route flush table {}".format(table)
+    execute_command(cmd)
+
+
+def execute_route_flush_v6(ctx, table=None):
+    cmd = "ip -6 route flush table {}".format(table)
+    execute_command(cmd)
+
+
+def execute_route_add(ctx, prefix, prefix_len, next_hop, interface, table=None):
+    full_prefix = "{}/{}".format(prefix, prefix_len)
+    cmd = "ip route add {} via {} dev {}".format(full_prefix, next_hop, interface)
+    if table:
+        cmd += " table {}".format(table)
+    execute_command(cmd)
+
+
+def execute_route_show(ctx, tables):
+    for table in tables:
+        cmd = "ip route show table {}".format(table)
+        execute_command(cmd)
+
+
+
+def overlay_routing_tables_calc(ctx):
+    tables = set()
+    for entry in ctx['db-overlay']:
+        tables.add(entry['table-name'])
+    return tables
+
+
+def route_local_update_overlay_routes(ctx):
+    if len(ctx['db-overlay']) <= 0:
+        return
+    log.debug("update local routes")
+    affected_tables = overlay_routing_tables_calc(ctx)
+    for table_name in affected_tables:
+        execute_route_flush_v4(ctx, table=table_name)
+    for entry in ctx['db-overlay']:
+        prefix     = entry['prefix']
+        prefix_len = entry['prefix-len']
+        interface  = entry['interface']
+        next_hop   = entry['next-hop']
+        table_name = entry['table-name']
+        execute_route_add(ctx, prefix, prefix_len, next_hop,
+                          interface, table=table_name)
+    execute_route_show(ctx, affected_tables)
+
+
+async def route_local_update_routes(ctx, overlay_only=False, underlay_only=False):
+    if not underlay_only:
+        route_local_update_overlay_routes(ctx)
+    if overlay_only:
+        return
+
+
+def process_overlay_full_dynamic(ctx, tables):
+    warn("receive message from OVERERLAY (DMPRD)\n")
+    if not isinstance(tables, list):
+        warn("routing message seems corrupt, expect array, got trash\n")
+        return False
+    overlay_purge(ctx)
+    ret =  overlay_add_new(ctx, tables)
+    # ok, everything is fine, now update routes
+    if ret: asyncio.ensure_future(route_local_update_routes(ctx, overlay_only=True))
+    return ret
 
 
 async def overlay_handle_rest_rx(request):
@@ -318,7 +398,6 @@ def terminal_air_by_router_eth(data, ip_addr, proto):
         else:
             raise
     return None
-
 
 
 def process_underlay_full_dynamic(ctx, data):
@@ -701,7 +780,7 @@ def ctx_new(conf, args):
     ctx['args'] = args
     ctx['db-underlay'] = dict()
     ctx['db-underlay-last-updated'] = None
-    ctx['db-overlay'] = dict()
+    ctx['db-overlay'] = list()
     ctx['db-overlay-last-updated'] = None
     return ctx
 
@@ -726,9 +805,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--configuration", help="configuration", type=str, default=None)
     parser.add_argument("-v", "--verbose", help="verbose", action='store_true', default=False)
+    parser.add_argument("--help-commands", help="show usefull command", action='store_true', default=False)
     parser.add_argument("-c", "--cinema-mode", help="show permantly routes", action='store_true',
                         default=False, dest="cinema")
     args = parser.parse_args()
+    if args.help_commands:
+        show_usefull_commands()
+        sys.exit(0)
     if not args.configuration:
         err("Configuration required, please specify a valid file path, exiting now\n")
     return args
@@ -737,15 +820,6 @@ def parse_args():
 def load_configuration_file(args):
     with open(args.configuration) as json_data:
         return json.load(json_data)
-
-
-def init_global_behavior(args, conf):
-    global DEBUG_ON
-    if conf['common']['debug'] or args.verbose:
-        msg("Debug: enabled\n")
-        DEBUG_ON = True
-    else:
-        msg("Debug: disabled\n")
 
 
 def check_system_table_conf(tables):
@@ -805,10 +879,30 @@ def check_conf(conf):
     check_interfaces(conf)
 
 
+def init_logging(conf):
+    log_level_conf = "warning"
+    if "logging" in conf:
+        if "level" in conf["logging"]:
+            log_level_conf = conf["logging"]['level']
+    numeric_level = getattr(logging, log_level_conf.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ConfigurationException('Invalid log level: {}'.format(numeric_level))
+    logging.basicConfig(level=numeric_level, format='%(message)s')
+    log.error("Log level configuration: {}".format(log_level_conf))
+
+
+def show_usefull_commands():
+    print("nft list table ip")
+    print("nft list table ip6")
+    print("ip -4 rule list")
+    print("ip -6 rule list")
+    print("ip -4 route show table highest_bandwidth")
+
+
 def conf_init():
     args = parse_args()
     conf = load_configuration_file(args)
-    init_global_behavior(args, conf)
+    init_logging(conf)
     check_conf(conf)
     return conf, args
 
@@ -831,6 +925,7 @@ def check_applications(conf):
             print("{} not available, install {}, bye".format(app[0], app[1]))
             sys.exit(EXIT_FAILURE)
 
+
 def proc_file_expect(path, number, err_text, exit_if_true=True):
     with open(path) as fd:
             data = fd.read()
@@ -839,7 +934,7 @@ def proc_file_expect(path, number, err_text, exit_if_true=True):
                 print("try \"echo {} | sudo tee {}\"".format(number, path))
                 if exit_if_true:
                     sys.exit(EXIT_FAILURE)
-                sleep(2)
+                time.sleep(2)
 
 
 def check_forwarding(conf):
@@ -850,9 +945,9 @@ def check_forwarding(conf):
 
 
 def check_filters(conf):
-    path = "net.ipv4.conf.all.rp_filter"
+    path = "/proc/sys/net/ipv4/conf/all/rp_filter"
     proc_file_expect(path, 2, "reverse-path filter should be loose", exit_if_true=False)
-    path = "net.ipv4.conf.all.log_martians"
+    path = "/proc/sys/net/ipv4/conf/all/log_martians"
     proc_file_expect(path, 2, "log martians should be enabled in integration period", exit_if_true=False)
 
 
@@ -871,7 +966,7 @@ def check_priviledges():
 
 
 if __name__ == '__main__':
-    msg("Router Manager, 2017\n")
+    sys.stderr.write("Router Manager, 2017\n")
     check_priviledges()
     conf, args = conf_init()
     check_environment(conf)
