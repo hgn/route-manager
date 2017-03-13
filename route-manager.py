@@ -167,8 +167,9 @@ def print_routes_overlay(ctx):
         ipfull   = "{}/{}".format(route['prefix'], route['prefix-len'])
         iface    = route['interface']
         next_hop = route['next-hop']
-        info = "{} via {} at {}".format(ipfull, next_hop, iface)
-        print(route)
+        tbl_name = route['table-name']
+        info = "{:>15} via {:15} dev {:5} [{}]".format(ipfull, next_hop, iface, tbl_name)
+        print(info)
 
 
 def print_routes(ctx):
