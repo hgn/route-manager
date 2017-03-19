@@ -153,12 +153,8 @@ async def route_broadcast(ctx):
 def print_routes_underlay(ctx):
     print("Underlay routes:")
     for interface_name, interface_data in ctx['db-underlay'].items():
-        for originator_ip_v4, routes in interface_data.items():
-            for route in routes:
-                msg = "[{}] {} > {}/{} (term air: {})".format(interface_name, originator_ip_v4,
-                                               route['prefix'], route['prefix-len'],
-                                               route['remote-terminal-air-ip-v4'])
-                print(msg)
+        for l0_top_addr_v4, route in interface_data.items():
+            print("neighbor {} - data: {}".format(l0_top_addr_v4, route))
 
 
 def print_routes_overlay(ctx):
@@ -280,6 +276,7 @@ def fwd_terminal_local_rest(url, data):
             print(pprint.pformat(resp))
     except urllib.error.URLError as e:
         print("Connection error: {}".format(e))
+        pass
 
 def overlay_purge(ctx):
     # remove old entry because DMPR will always send
@@ -292,10 +289,6 @@ def overlay_add_new(ctx, tables):
     # ways, just to inform the caller if the syntax
     # is not correct, corrupt, ...
     for route_entry in tables:
-        #print("{}  table: {}".format(time_fnt(), table_name))
-            # {'prefix-len': '24', 'proto': 'v4', 'prefix': '44.101.177.0',
-            # 'interface': 'wifi0', 'next-hop': '10.10.10.140'}
-            # sanity check now
         if not all (k in route_entry for k in ("prefix", "prefix-len", 'interface', 'next-hop', 'table-name')):
             log.error("packet from DMPR corrupt: {}".format(route_entry))
             return False
@@ -326,7 +319,6 @@ def execute_route_show(ctx, tables):
     for table in tables:
         cmd = "ip route show table {}".format(table)
         execute_command(cmd)
-
 
 
 def overlay_routing_tables_calc(ctx):
@@ -362,12 +354,12 @@ async def route_local_update_routes(ctx, overlay_only=False, underlay_only=False
 
 
 def process_overlay_full_dynamic(ctx, tables):
-    warn("receive message from OVERERLAY (DMPRD)\n")
+    #warn("receive message from OVERERLAY (DMPRD)\n")
     if not isinstance(tables, list):
-        warn("routing message seems corrupt, expect array, got trash\n")
+        print("routing message seems corrupt, expect array, got trash\n")
         return False
     overlay_purge(ctx)
-    ret =  overlay_add_new(ctx, tables)
+    ret = overlay_add_new(ctx, tables)
     # ok, everything is fine, now update routes
     if ret: asyncio.ensure_future(route_local_update_routes(ctx, overlay_only=True))
     return ret
@@ -401,38 +393,71 @@ def terminal_air_by_router_eth(data, ip_addr, proto):
     return None
 
 
-def process_underlay_full_dynamic(ctx, data):
-    warn("receive message from UNDERLAY (ohndl)\n")
-    pprint.pprint(data)
-    print("\n")
-    return
+async def underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4):
+    log.debug("update local routes")
+    route_data  = ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4]
+    interface   = pl_l0_top_iface_name
+    prefix      = route_data['l0_prefix_v4']
+    prefix_len  = route_data['l0_prefix_len_v4']
+    next_hop    = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l0_bottom_addr_v4']
+    affected_tables = available_routing_tables(ctx['conf'])
+    for table_name in affected_tables:
+        execute_route_add(ctx, prefix, prefix_len, next_hop, interface, table=table_name)
+        execute_route_show(ctx, affected_tables)
 
+
+async def underlay_route_rest_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4):
+    # this will set a route on the terminal, so the network is identical, but
+    # the next hop ip address differes! It is the IP address of the other platform
+    # terminal (l1 top)
+    log.debug("update local routes")
+    route_data  = ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4]
+    interface   = pl_l0_top_iface_name
+    prefix      = route_data['l0_prefix_v4']
+    prefix_len  = route_data['l0_prefix_len_v4']
+    next_hop    = route_data['l1_top_addr_v4']
+    iface_name  = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l1_top_iface_name']
+    print("configure terminal: {}/{} via {} dev {}".format(prefix, prefix_len, next_hop, iface_name))
+
+
+def process_underlay_terminal_local_rest(ctx, data):
     # where did OHNDL instance operates off?
-    terminal_interface_name = data['terminal']['iface-name']
+    pl_l0_top_iface_name = data['terminal']['pl_l0_top_iface_name']
 
-    # ipv4 address (eth) of this terminal
-    terminal_addr_v4 = data['terminal']['ip-eth-v4']
+    # clean up everything from this particular neighbor,
+    # remove old ones for now
+    ctx['db-underlay'][pl_l0_top_iface_name] = dict()
+    flush_configured_rt_tables(ctx, pl_l0_top_iface_name)
+    ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data'] = data['terminal']
 
-    # clean up everything, remove old ones for now
-    ctx['db-underlay'][terminal_interface_name] = dict()
-
-    for route in data['routes']:
-        prefix     = route['prefix']
-        prefix_len = route['prefix-len']
-        originator_ip_v4 = route['originator-ohndl-addr-v4']
-
-        if not originator_ip_v4 in ctx['db-underlay'][terminal_interface_name]:
-            ctx['db-underlay'][terminal_interface_name][originator_ip_v4] = list()
-        e = dict()
-        e['prefix'] = prefix
-        e['prefix-len'] = prefix_len
-        terminal_air_ip_v4 = terminal_air_by_router_eth(data, originator_ip_v4, 'v4')
-        if None:
-            raise Exception("something is wronggggggg")
-        e['remote-terminal-air-ip-v4'] = terminal_air_ip_v4
-        ctx['db-underlay'][terminal_interface_name][originator_ip_v4].append(e)
-
+    for route in data['neighbors']:
+        l0_top_addr_v4 = route['l0_top_addr_v4']
+        if l0_top_addr_v4 in ctx['db-underlay'][pl_l0_top_iface_name]:
+            raise Exception("two or more routers with some l0 addr, config error?")
+        ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4] = route
+        asyncio.ensure_future(underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4))
+        asyncio.ensure_future(underlay_route_rest_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4))
     return True
+
+
+def process_underlay_gre(ctx, data):
+    # local interface name (com0, com1, ...)
+    pl_l0_top_iface_name = data['terminal']['pl_l0_top_iface_name']
+    for route in data['neighbors']:
+        l0_top_addr_v4 = route['l0_top_addr_v4']
+    return True
+
+
+def process_underlay_message(ctx, data):
+    iface_name = data['terminal']['pl_l0_top_iface_name']
+    for iface_data in ctx['conf']['interfaces']:
+        if not iface_data['name'] == iface_name:
+            continue
+        if iface_data['type'] == 'terminal-local-rest':
+            return process_underlay_terminal_local_rest(ctx, data)
+        elif iface_data['type'] == 'gre':
+            return process_underlay_gre(ctx, data)
+    raise ConfigurationException("interface type not specided")
 
 
 async def underlay_handle_rest_rx(request):
@@ -440,7 +465,7 @@ async def underlay_handle_rest_rx(request):
     # usually from OHNDL
     try:
         request_data = await request.json()
-        ok = process_underlay_full_dynamic(ctx, request_data)
+        ok = process_underlay_message(ctx, request_data)
     except json.decoder.JSONDecodeError:
         response_data = {'status': 'failure', "message": "data not properly formated"}
         body = json.dumps(response_data).encode('utf-8')
@@ -469,11 +494,14 @@ def http_init(ctx, loop):
     loop.run_until_complete(server)
 
 
-def flush_configured_rt_tables(ctx):
+def flush_configured_rt_tables(ctx, interface=None):
     configured_rt_tables = available_routing_tables(ctx["conf"])
     print("clean existing routing entries")
+    cmd_base = "ip route flush"
+    if interface:
+        cmd_base += " dev {}".format(interface)
     for table in configured_rt_tables:
-        cmd = "ip route flush table {}".format(table)
+        cmd = "{} table {}".format(cmd_base, table)
         execute_command(cmd)
 
 
@@ -842,6 +870,7 @@ def available_routing_tables(conf):
     tables = set()
     for selectors in conf['table-selectors']:
         tables.add(selectors['table'])
+    tables.add(conf['default-table'])
     return tables
 
 
