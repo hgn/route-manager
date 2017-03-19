@@ -327,30 +327,54 @@ def overlay_routing_tables_calc(ctx):
         tables.add(entry['table-name'])
     return tables
 
-
-def route_local_update_overlay_routes(ctx):
-    if len(ctx['db-overlay']) <= 0:
-        return
-    log.debug("update local routes")
-    affected_tables = overlay_routing_tables_calc(ctx)
-    for table_name in affected_tables:
-        execute_route_flush_v4(ctx, table=table_name)
-    for entry in ctx['db-overlay']:
-        prefix     = entry['prefix']
-        prefix_len = entry['prefix-len']
-        interface  = entry['interface']
-        next_hop   = entry['next-hop']
-        table_name = entry['table-name']
-        execute_route_add(ctx, prefix, prefix_len, next_hop,
+def process_overlay_terminal_local(ctx, entry):
+    prefix     = entry['prefix']
+    prefix_len = entry['prefix-len']
+    interface  = entry['interface']
+    next_hop   = entry['next-hop']
+    table_name = entry['table-name']
+    execute_route_add(ctx, prefix, prefix_len, next_hop,
                           interface, table=table_name)
     execute_route_show(ctx, affected_tables)
 
 
-async def route_local_update_routes(ctx, overlay_only=False, underlay_only=False):
-    if not underlay_only:
-        route_local_update_overlay_routes(ctx)
-    if overlay_only:
-        return
+def process_overlay_terminal_rest(ctx, entry):
+
+
+def process_overlay_terminal_local_rest(ctx, entry):
+    process_overlay_terminal_local(ctx, entry)
+    process_overlay_terminal_rest(ctx, entry)
+
+
+
+def process_overlay_gre(ctx, entry):
+    # see process_overlay_terminal_local_rest()
+    pass
+
+
+def route_flush_terminal_local_rest(ctx):
+    for iface_data in ctx['conf']['interface']:
+        name = iface_data['name']
+        route_flush_configured_rt_tables(ctx, iface_name=name)
+
+
+def route_local_update_overlay_routes(ctx):
+    log.debug("update local routes")
+    route_flush_terminal_local_rest(ctx)
+    for entry in ctx['db-overlay']:
+        iface_name = entry['interface']
+        for iface_data in ctx['conf']['interfaces']:
+            if iface_data['name'] != iface_name:
+                continue
+            if iface_data['type'] == 'terminal-local-rest':
+                return process_overlay_terminal_local_rest(ctx, data)
+            elif iface_data['type'] == 'gre':
+                return process_overlay_gre(ctx, data)
+        raise ConfigurationException("interface type not specided")
+
+
+async def route_local_update_routes(ctx):
+    route_local_update_overlay_routes(ctx)
 
 
 def process_overlay_full_dynamic(ctx, tables):
@@ -361,7 +385,7 @@ def process_overlay_full_dynamic(ctx, tables):
     overlay_purge(ctx)
     ret = overlay_add_new(ctx, tables)
     # ok, everything is fine, now update routes
-    if ret: asyncio.ensure_future(route_local_update_routes(ctx, overlay_only=True))
+    if ret: asyncio.ensure_future(route_local_update_routes(ctx))
     return ret
 
 
@@ -427,7 +451,7 @@ def process_underlay_terminal_local_rest(ctx, data):
     # clean up everything from this particular neighbor,
     # remove old ones for now
     ctx['db-underlay'][pl_l0_top_iface_name] = dict()
-    flush_configured_rt_tables(ctx, pl_l0_top_iface_name)
+    route_flush_configured_rt_tables(ctx, iface_name=pl_l0_top_iface_name)
     ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data'] = data['terminal']
 
     for route in data['neighbors']:
@@ -441,6 +465,10 @@ def process_underlay_terminal_local_rest(ctx, data):
 
 
 def process_underlay_gre(ctx, data):
+    # See process_underlay_terminal_local_rest() for a complete
+    # function where a) local routes are set and b) the terminal
+    # is configured too
+
     # local interface name (com0, com1, ...)
     pl_l0_top_iface_name = data['terminal']['pl_l0_top_iface_name']
     for route in data['neighbors']:
@@ -494,19 +522,19 @@ def http_init(ctx, loop):
     loop.run_until_complete(server)
 
 
-def flush_configured_rt_tables(ctx, interface=None):
+def route_flush_configured_rt_tables(ctx, iface_name=None):
     configured_rt_tables = available_routing_tables(ctx["conf"])
     print("clean existing routing entries")
     cmd_base = "ip route flush"
-    if interface:
-        cmd_base += " dev {}".format(interface)
+    if iface_name:
+        cmd_base += " dev {}".format(iface_name)
     for table in configured_rt_tables:
         cmd = "{} table {}".format(cmd_base, table)
         execute_command(cmd)
 
 
 def init_routing_system(ctx):
-    flush_configured_rt_tables(ctx)
+    route_flush_configured_rt_tables(ctx)
 
 
 def nft_flush_all_input_v4(ctx):
