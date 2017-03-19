@@ -403,17 +403,15 @@ def terminal_air_by_router_eth(data, ip_addr, proto):
 
 def process_underlay_full_dynamic(ctx, data):
     warn("receive message from UNDERLAY (ohndl)\n")
-    #pprint.pprint(data)
-    #print("\n")
+    pprint.pprint(data)
+    print("\n")
+    return
 
     # where did OHNDL instance operates off?
     terminal_interface_name = data['terminal']['iface-name']
 
     # ipv4 address (eth) of this terminal
     terminal_addr_v4 = data['terminal']['ip-eth-v4']
-
-    # maximum bandwidth of this interface
-    terminal_bandwidth_max = data['terminal']['bandwidth-max']
 
     # clean up everything, remove old ones for now
     ctx['db-underlay'][terminal_interface_name] = dict()
