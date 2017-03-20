@@ -335,10 +335,13 @@ def process_overlay_terminal_local(ctx, entry):
     table_name = entry['table-name']
     execute_route_add(ctx, prefix, prefix_len, next_hop,
                           interface, table=table_name)
+    # add default route too
+    execute_route_add(ctx, prefix, prefix_len, next_hop, interface)
     execute_route_show(ctx, affected_tables)
 
 
 def process_overlay_terminal_rest(ctx, entry):
+    pass
 
 
 def process_overlay_terminal_local_rest(ctx, entry):
@@ -370,7 +373,7 @@ def route_local_update_overlay_routes(ctx):
                 return process_overlay_terminal_local_rest(ctx, data)
             elif iface_data['type'] == 'gre':
                 return process_overlay_gre(ctx, data)
-        raise ConfigurationException("interface type not specided")
+        raise Exception("interface type not specided")
 
 
 async def route_local_update_routes(ctx):
@@ -427,6 +430,8 @@ async def underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4)
     affected_tables = available_routing_tables(ctx['conf'])
     for table_name in affected_tables:
         execute_route_add(ctx, prefix, prefix_len, next_hop, interface, table=table_name)
+        # add route to default route too
+        execute_route_add(ctx, prefix, prefix_len, next_hop, interface)
         execute_route_show(ctx, affected_tables)
 
 
@@ -485,7 +490,7 @@ def process_underlay_message(ctx, data):
             return process_underlay_terminal_local_rest(ctx, data)
         elif iface_data['type'] == 'gre':
             return process_underlay_gre(ctx, data)
-    raise ConfigurationException("interface type not specided")
+    raise Exception("interface type not specided for term {}".format(iface_name))
 
 
 async def underlay_handle_rest_rx(request):
