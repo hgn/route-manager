@@ -102,6 +102,50 @@ def execute_command(command, suppress_output=False):
     p.wait()
 
 
+def rest_url_by_interface(ctx, iface_name):
+    interfaces = ctx['conf']['interfaces']
+    for interface in interfaces:
+        if not interface['name'] != iface_name:
+            continue
+        return interface['type-data']['url-route-set']
+    raise Exception("interface not specided for term {}".format(iface_name))
+
+
+def set_ip_routes(ctx, iface_name, routes):
+    url = rest_url_by_interface(ctx, iface_name)
+    user_agent_headers = { 'Content-type': 'application/json',
+                           'Accept':       'application/json' }
+    proxy_support = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(proxy_support)
+    urllib.request.install_opener(opener)
+
+    data = dict()
+    data['routes'] = list()
+
+    for route in routes:
+        r = dict()
+        r['iface'] = route['iface_name']
+        r['prefix'] = route['prefix']
+        r['next-hop'] = route['next-hop']
+        data['routes'].append(r)
+
+    tx_data = json.dumps(data).encode('utf-8')
+    print("Query: {}".format(url))
+    request = urllib.request.Request(url, tx_data, user_agent_headers)
+    try:
+        server_response = urllib.request.urlopen(request).read()
+    except urllib.error.HTTPError as e:
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
+    except urllib.error.URLError as e:
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
+    server_data = json.loads(str(server_response, "utf-8"))
+    print("Answer IPC:")
+    print(server_data)
+    return server_data
+
+
 def terminal_local_rest_create_inbound_routes(ctx, next_hop):
     if not "networks-local" in ctx["conf"]:
         return list() # empty list

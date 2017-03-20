@@ -25,7 +25,7 @@
 			"name" : "eth0",
 			"type" : "terminal-local-rest",
 			"type-data" : {
-				"url-set-routes" : "http://localhost:5180/api/v1/WB-LOS/routes-set"
+				"url-route-set" : "http://127.0.0.1:10000/api/v1/route-set"
 			},
 
 			"terminal-ipv4" : "192.168.1.1",
