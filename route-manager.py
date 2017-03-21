@@ -61,6 +61,201 @@ EXIT_FAILURE = 1
 # NFT default table manager for route manager
 NFT_TABLE_NAME = "route_manager"
 
+
+
+class RouteEntry(object):
+
+    def __init__(self, prefix, prefix_len, next_hop,
+                interface, l1_next_hop_v4=None, l1_iface_name=None, proto="v4",
+                table=None, origin=None, origin_iface=None):
+        self._my_attribute = 0
+        self.update_mtime()
+        self._prefix = prefix
+        self._prefix_len = prefix_len
+        self._next_hop = next_hop
+        self._interface = interface
+        self._l1_next_hop_v4 = l1_next_hop_v4
+        self._l1_iface_name = l1_iface_name
+        self._proto = proto
+        self._table = table
+        self._origin = origin
+        self._origin_iface = origin_iface
+        self._state = "undefined"
+
+
+    def __str__(self):
+        delta = datetime.datetime.utcnow() - self._mtime
+        s  = "[state:{}]".format(self._state)
+        s  = " {}/{}".format(self._prefix, self._prefix_len)
+        s += " via {} dev {}".format(self._next_hop, self._interface)
+        s += " proto:{}".format(self._proto)
+        s += " mtime:{}".format(delta.total_seconds())
+        s += " table:{}".format(self._table)
+        s += " l1-next-v4:{}".format(self._l1_next_hop_v4)
+        s += " l1-next-iface:{}".format(self._l1_iface_name)
+        return s
+
+
+    def update_mtime(self):
+        self._mtime = datetime.datetime.utcnow()
+
+
+    def cmp_base(self, other):
+        if self._proto != other._proto:
+            return False
+        if self._prefix != other._prefix:
+            return False
+        if self._prefix_len != other._prefix_len:
+            return False
+        return True
+
+
+    def __eq__(self, other):
+        if not self.cmp_base(other):
+            return False
+        if self._next_hop != other._next_hop:
+            return False
+        if self._table != other._table:
+            return False
+        if self._l1_next_hop_v4 != other._l1_next_hop_v4:
+            return False
+        if self._l1_iface_name != other._l1_iface_name:
+            return False
+        if self._origin != other._origin:
+            return False
+        if self._origin_iface != other._origin_iface:
+            return False
+        return True
+
+
+    def cmp_next_hop(self, other):
+        if self._next_hop == other._next_hop:
+            return True
+        return False
+
+    @property
+    def next_hop(self):
+        return self._next_hop
+
+
+    @next_hop.setter
+    def next_hop(self, value):
+        self._next_hop = value
+
+    @property
+    def origin(self):
+        return self._origin
+
+    @property
+    def origin_iface(self):
+        return self._origin_iface
+
+    @property
+    def interface(self):
+        return self._interface
+
+
+    @interface.setter
+    def interface(self, value):
+        self._interface = value
+
+
+    @property
+    def mtime(self):
+        return self._mtime
+
+
+    @property
+    def prefix(self):
+        return self._prefix
+
+    @property
+    def prefix_len(self):
+        return self._prefix_len
+
+
+    @property
+    def l1_next_hop_v4(self):
+        return self._l1_next_hop_v4
+
+
+    @l1_next_hop_v4.setter
+    def l1_next_hop_v4(self, value):
+        self._l1_next_hop_v4 = value
+
+    @property
+    def l1_iface_name(self):
+        return self._l1_iface_name
+
+
+    @l1_iface_name.setter
+    def l1_iface_name(self, value):
+        self._l1_iface_name = value
+
+
+    @property
+    def state(self):
+        return self._state
+
+
+    @state.setter
+    def state(self, value):
+        if value not in ("undefined", "new", "old"):
+            raise Exception("state not allowed {}".format(value))
+        self._state = value
+
+
+
+class RouteDB(object):
+
+    def __init__(self, timeout=60):
+        self.db = list()
+        self._timeout = timeout
+
+
+    def update(self, entry):
+        """ this will add the route entry if not available
+            and return true if it is a new element, false if not
+            If the entry is already in the database it will check if
+            the next-hop is identical, not not it will overwrite and
+            return True, if it is identical in all belongs it will just
+            update the mtime timestamp and return False"""
+        for old_entry in self.db:
+            if not old_entry.cmp_base(entry):
+                continue
+            # ok, identical in base, in whole?
+            if old_entry == entry:
+                print("route entry full identical")
+                old_entry.update_mtime()
+                return False
+            # ok, prefix differes
+            print("route prefix identical, next/interface differs")
+            old_entry.next_hop = entry.next_hop
+            old_entry.interface = entry.interface
+            old_entry.update_mtime()
+            old.state = "new" # to signal that this entry is new
+            return True
+        # ok, new element
+        print("new  entry added to db")
+        entry.update_mtime()
+        entry.state = "new" # to signal that this entry is new
+        self.db.append(entry)
+        return True
+
+
+    def gc(self):
+        now = datetime.datetime.utcnow()
+        for entry in self.db[:]:
+            if entry.origin == "config":
+                # static configured routes are never
+                # removed
+                continue
+            diff = now - entry.mtime
+            if diff.total_seconds() > float(self._timeout):
+                print("remove outdated routing entry")
+                self.db.remove(entry)
+
+
 def time_fnt():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
@@ -89,7 +284,8 @@ def msg(msg):
 
 def execute_command(command, suppress_output=False):
     print("  execute \"{}\"".format(command))
-    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+    p = subprocess.Popen(command.split(), stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, shell=False)
     out, err = p.communicate()
     if not suppress_output:
         lines = err.decode("utf-8")
@@ -105,9 +301,9 @@ def execute_command(command, suppress_output=False):
 def rest_url_by_interface(ctx, iface_name):
     interfaces = ctx['conf']['interfaces']
     for interface in interfaces:
-        if not interface['name'] != iface_name:
+        if interface['name'] != iface_name:
             continue
-        return interface['type-data']['url-route-set']
+        return interface['type-data']['url-routes-set']
     raise Exception("interface not specided for term {}".format(iface_name))
 
 
@@ -124,7 +320,7 @@ def set_ip_routes(ctx, iface_name, routes):
 
     for route in routes:
         r = dict()
-        r['iface'] = route['iface_name']
+        r['iface'] = route['iface']
         r['prefix'] = route['prefix']
         r['next-hop'] = route['next-hop']
         data['routes'].append(r)
@@ -175,12 +371,8 @@ def inform_periodically_terminal_local_rest(ctx, interface):
 
 
 def inform_periodically(ctx):
-    print("periodic inform handler")
-    for interface in ctx["conf"]["interfaces"]:
-        if interface["type"] == "terminal-local-rest":
-            inform_periodically_terminal_local_rest(ctx, interface)
-            continue
-        raise Exception("terminal type not supported")
+    for route_entry in ctx["route-db"].db:
+        print(route_entry)
 
 
 async def route_broadcast(ctx):
@@ -216,6 +408,17 @@ def print_routes(ctx):
     if ctx['args'].cinema: print("\033c")
     print_routes_underlay(ctx)
     print_routes_overlay(ctx)
+
+
+async def route_db_gc(ctx):
+    interval = 10
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            ctx["route-db"].gc()
+        except asyncio.CancelledError:
+            break
+    asyncio.get_event_loop().stop()
 
 
 async def print_routes_periodically(ctx):
@@ -333,7 +536,8 @@ def overlay_add_new(ctx, tables):
     # ways, just to inform the caller if the syntax
     # is not correct, corrupt, ...
     for route_entry in tables:
-        if not all (k in route_entry for k in ("prefix", "prefix-len", 'interface', 'next-hop', 'table-name')):
+        keys = ("prefix", "prefix-len", 'interface', 'next-hop', 'table-name')
+        if not all (k in route_entry for k in keys):
             log.error("packet from DMPR corrupt: {}".format(route_entry))
             return False
         ctx['db-overlay'].append(route_entry)
@@ -406,7 +610,7 @@ def route_flush_terminal_local_rest(ctx):
 
 
 def route_local_update_overlay_routes(ctx):
-    log.debug("update local routes")
+    #log.debug("update local routes")
     route_flush_terminal_local_rest(ctx)
     for entry in ctx['db-overlay']:
         iface_name = entry['interface']
@@ -420,8 +624,38 @@ def route_local_update_overlay_routes(ctx):
         raise Exception("interface type not specided")
 
 
-async def route_local_update_routes(ctx):
-    route_local_update_overlay_routes(ctx)
+def query_l1_addr_by_pl_iface(ctx, iface_name):
+    if not iface_name in ctx["l1-map"]:
+        return None
+    return ctx["l1-map"][iface_name]
+
+
+def overlay_route_local_update_routes(ctx, entry):
+    # shared between l0 & l1
+    prefix      = entry['prefix']
+    prefix_len  = entry['prefix-len']
+
+    # l0
+    interface   = entry['interface']
+
+    # the next hop is the pl_l0_bottom_addr_v4, not the ip
+    # address in the packet, because this is the other platform
+    # ip address
+    if not interface in ctx['db-underlay']:
+        return
+    next_hop    = ctx['db-underlay'][interface]['terminal-data']['pl_l0_bottom_addr_v4']
+    table_name  = entry['table-name']
+
+    # l1
+    l1_next_hop    = query_l1_addr_by_pl_iface(ctx, interface)
+    if not interface in ctx["db-underlay"]:
+        #no data yet, wait until data is available
+        return False
+    l1_iface_name  = ctx['db-underlay'][interface]['terminal-data']['pl_l1_top_iface_name']
+
+    e = RouteEntry(prefix, prefix_len, next_hop, interface,
+                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name, proto="v4", origin="overlay", origin_iface=interface)
+    return ctx["route-db"].update(e)
 
 
 def process_overlay_full_dynamic(ctx, tables):
@@ -429,11 +663,23 @@ def process_overlay_full_dynamic(ctx, tables):
     if not isinstance(tables, list):
         print("routing message seems corrupt, expect array, got trash\n")
         return False
-    overlay_purge(ctx)
-    ret = overlay_add_new(ctx, tables)
+    #overlay_purge(ctx)
+    #ret = overlay_add_new(ctx, tables)
     # ok, everything is fine, now update routes
-    if ret: asyncio.ensure_future(route_local_update_routes(ctx))
-    return ret
+    #if ret: asyncio.ensure_future(route_local_update_routes(ctx))
+    #return ret
+    # return true when the data was valid in some
+    # ways, just to inform the caller if the syntax
+    # is not correct, corrupt, ...
+    update_required = False
+    for route_entry in tables:
+        ret = overlay_route_local_update_routes(ctx, route_entry)
+        if ret == True: update_required = True
+    # we do it in this way to do it one time, to reduce subsequent load
+    # for the terminal
+    if update_required:
+        asyncio.ensure_future(route_db_changed(ctx))
+    return True
 
 
 async def overlay_handle_rest_rx(request):
@@ -464,33 +710,91 @@ def terminal_air_by_router_eth(data, ip_addr, proto):
     return None
 
 
-async def underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4):
-    log.debug("update local routes")
-    route_data  = ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4]
-    interface   = pl_l0_top_iface_name
-    prefix      = route_data['l0_prefix_v4']
-    prefix_len  = route_data['l0_prefix_len_v4']
-    next_hop    = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l0_bottom_addr_v4']
+def route_db_changed_non_tunnel(ctx):
+
+    local_routes = []
+    terminal_routes = []
+
+    # local processing
     affected_tables = available_routing_tables(ctx['conf'])
-    for table_name in affected_tables:
-        execute_route_add(ctx, prefix, prefix_len, next_hop, interface, table=table_name)
-        # add route to default route too
-        execute_route_add(ctx, prefix, prefix_len, next_hop, interface)
-        execute_route_show(ctx, affected_tables)
+    for entry in ctx["route-db"].db:
+        if entry.origin == "config":
+            # will not be configured locally, just for terminal
+            # purpose
+            continue
+        if entry.state == "new":
+            prefix     = entry.prefix
+            prefix_len = entry.prefix_len
+            interface  = entry.interface
+            next_hop   = entry.next_hop
+            # add default route too
+            execute_route_add(ctx, prefix, prefix_len, next_hop, interface)
+
+    affected_tables.add("main")
+    affected_tables.add("default")
+    execute_route_show(ctx, affected_tables)
+
+    # now set routing table for terminals
+    routes = []
+    for entry in ctx["route-db"].db:
+        r = {}
+        if entry.origin == "config":
+            prefix_full = "{}/{}".format(entry.prefix, entry.prefix_len)
+            r['iface'] = entry.interface
+            r['prefix'] = prefix
+            r['next-hop'] = entry.next_hop
+        else:
+            iface = entry.origin_iface
+            prefix_full = "{}/{}".format(entry.prefix, entry.prefix_len)
+            interface  = entry.l1_iface_name
+            next_hop   = entry.l1_next_hop_v4
+            r['iface'] = interface
+            r['prefix'] = prefix_full
+            r['next-hop'] = next_hop
+        routes.append(r)
+    set_ip_routes(ctx, iface, routes)
 
 
-async def underlay_route_rest_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4):
-    # this will set a route on the terminal, so the network is identical, but
-    # the next hop ip address differes! It is the IP address of the other platform
-    # terminal (l1 top)
-    log.debug("update local routes")
+
+def route_db_set_state_old(ctx):
+    for entry in ctx["route-db"].db:
+        if entry.state == "new":
+            entry.state = "old"
+
+
+async def route_db_changed(ctx):
+    route_db_changed_non_tunnel(ctx)
+    #route_db_changed_non_tunnel(ctx)
+    route_db_set_state_old(ctx)
+
+
+async def underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4):
+    #log.debug("update local routes")
     route_data  = ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4]
-    interface   = pl_l0_top_iface_name
+
+    # shared between l0 & l1
     prefix      = route_data['l0_prefix_v4']
     prefix_len  = route_data['l0_prefix_len_v4']
-    next_hop    = route_data['l1_top_addr_v4']
-    iface_name  = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l1_top_iface_name']
-    print("configure terminal: {}/{} via {} dev {}".format(prefix, prefix_len, next_hop, iface_name))
+
+    # l0
+    interface   = pl_l0_top_iface_name
+    next_hop    = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l0_bottom_addr_v4']
+
+    # l1
+    l1_next_hop    = route_data['l1_top_addr_v4']
+    l1_iface_name  = ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data']['pl_l1_top_iface_name']
+
+    # FIXME: save this mapping somewhere else
+    ctx["l1-map"][pl_l0_top_iface_name] = l1_next_hop
+
+    e = RouteEntry(prefix, prefix_len, next_hop, interface,
+                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name, proto="v4", origin="underlay", origin_iface=pl_l0_top_iface_name)
+    ret = ctx["route-db"].update(e)
+    if ret:
+        asyncio.ensure_future(route_db_changed(ctx))
+        
+        # new one, trigger update procedure
+
 
 
 def process_underlay_terminal_local_rest(ctx, data):
@@ -500,7 +804,7 @@ def process_underlay_terminal_local_rest(ctx, data):
     # clean up everything from this particular neighbor,
     # remove old ones for now
     ctx['db-underlay'][pl_l0_top_iface_name] = dict()
-    route_flush_configured_rt_tables(ctx, iface_name=pl_l0_top_iface_name)
+    #route_flush_configured_rt_tables(ctx, iface_name=pl_l0_top_iface_name)
     ctx['db-underlay'][pl_l0_top_iface_name]['terminal-data'] = data['terminal']
 
     for route in data['neighbors']:
@@ -509,7 +813,6 @@ def process_underlay_terminal_local_rest(ctx, data):
             raise Exception("two or more routers with some l0 addr, config error?")
         ctx['db-underlay'][pl_l0_top_iface_name][l0_top_addr_v4] = route
         asyncio.ensure_future(underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4))
-        asyncio.ensure_future(underlay_route_rest_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4))
     return True
 
 
@@ -810,6 +1113,7 @@ def rule_system_cleanup_v6(ctx):
     cmd = 'sudo ip -6 rule add from ::/0 priority 32767 table default'
     execute_command(cmd, suppress_output=False)
 
+
 def rule_system_cleanup(ctx):
     rule_system_cleanup_v4(ctx)
     rule_system_cleanup_v6(ctx)
@@ -889,13 +1193,31 @@ def ctx_new(conf, args):
     return ctx
 
 
+def setup_local_default_routes(ctx):
+
+    for iface in ctx["conf"]["interfaces"]:
+        for network in iface["local-networks"]:
+                prefix = network["prefix"]
+                prefix_len = network["prefix-len"]
+                next_hop = iface["addr-v4"]
+                interface = iface["l0-bottom-iface-name"]
+                e = RouteEntry(prefix, prefix_len, next_hop, interface, origin="config")
+                ctx["route-db"].update(e)
+
+
 def main(conf, args):
     ctx = ctx_new(conf, args)
     init_stack(ctx)
     loop = asyncio.get_event_loop()
     http_init(ctx, loop)
-    #asyncio.ensure_future(route_broadcast(ctx))
-    asyncio.ensure_future(print_routes_periodically(ctx))
+
+    ctx["route-db"] = RouteDB()
+    setup_local_default_routes(ctx)
+
+    ctx["l1-map"] = dict()
+    asyncio.ensure_future(route_broadcast(ctx))
+    asyncio.ensure_future(route_db_gc(ctx))
+    #asyncio.ensure_future(print_routes_periodically(ctx))
     asyncio.ensure_future(db_check_outdated_periodically(ctx))
     try:
         loop.run_forever()
@@ -1071,7 +1393,7 @@ def check_priviledges():
 
 
 if __name__ == '__main__':
-    sys.stderr.write("Router Manager, 2017\n")
+    sys.stderr.write("route-manager(c) - 2016, 2017\n")
     check_priviledges()
     conf, args = conf_init()
     check_environment(conf)
