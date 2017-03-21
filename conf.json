@@ -25,7 +25,7 @@
 			"name" : "eth0",
 			"type" : "terminal-local-rest",
 			"type-data" : {
-				"url-route-set" : "http://127.0.0.1:10000/api/v1/route-set"
+				"url-routes-set" : "http://127.0.0.1:10000/api/v1/route-set"
 			},
 
 			"terminal-ipv4" : "192.168.1.1",
@@ -35,7 +35,12 @@
 					"prefix-len" : "24",
 					"terminal-remote-air-ipv4" : "169.168.1.1"
 				}
-			}
+			},
+			"local-networks" : [
+			   { "prefix" : "10.3.102.0", "prefix-len": "24" }
+			],
+                        "addr-v4" : "10.2.101.41",
+                        "l0-bottom-iface-name" : "eth0"
 		}
 	],
 
