@@ -59,22 +59,23 @@
 
 		{ "nft-rule" : "ip protocol tcp",                           "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip protocol udp",                           "table" : "lowest_loss" },
-		{ "nft-rule" : "ip protocol == { icmp }",                   "table" : "highest_bandwidth" },
+		{ "nft-rule" : "ip protocol icmp",                          "table" : "highest_bandwidth" },
+		{ "nft-rule-xxx" : "ip protocol == { icmp }",               "table" : "highest_bandwidth" },
 		{ "nft-rule" : "tcp dport 80",                              "table" : "lowest_loss" },
 		{ "nft-rule" : "tcp sport 2000",                            "table" : "highest_bandwidth" },
-		{ "nft-rule" : "ip dscp != 0x20",                           "table" : "highest_bandwidth" },
-		{ "nft-rule" : "ip dscp {cs0, cs1, cs2, ef }",              "table" : "highest_bandwidth" },
+		{ "nft-rule-xxx" : "ip dscp != 0x20",                       "table" : "highest_bandwidth" },
+		{ "nft-rule-xxx" : "ip dscp {cs0, cs1, cs2, ef }",          "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip length 232",                             "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip id 22",                                  "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip ttl 233",                                "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip protocol { ah, udp, tcp }",              "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip daddr { 192.168.0.1-192.168.0.250 }",    "table" : "highest_bandwidth" },
-		{ "nft-rule" : "ip daddr != { 192.168.0.1-192.168.0.250 }", "table" : "highest_bandwidth" },
+		{ "nft-rule-xxx" : "ip daddr != { 192.168.0.1-192.168.0.250 }", "table" : "highest_bandwidth" },
 		{ "nft-rule" : "ip daddr 8.8.8.8",                          "table" : "lowest_loss" }
 	],
 
 	"logging" : {
-		"level" : "debug"
+		"level" : "info"
 	}
 
 }

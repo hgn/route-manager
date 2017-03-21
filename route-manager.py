@@ -1084,7 +1084,7 @@ def nft_add_configured_mark_rules(ctx):
         elif "nft6-rule" in selector:
             nft_add_configured_mark_rules_v6(ctx, selector)
         else:
-            assert(False)
+            log.error("rule not known: {}".format(selector))
 
 
 def nft_show_all(ctx):
@@ -1216,6 +1216,8 @@ def ctx_new(conf, args):
 def setup_local_default_routes(ctx):
 
     for iface in ctx["conf"]["interfaces"]:
+        if not "local-networks" in iface:
+            continue
         for network in iface["local-networks"]:
                 prefix = network["prefix"]
                 prefix_len = network["prefix-len"]
