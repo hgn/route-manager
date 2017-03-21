@@ -85,14 +85,18 @@ class RouteEntry(object):
 
     def __str__(self):
         delta = datetime.datetime.utcnow() - self._mtime
-        s  = "[state:{}]".format(self._state)
-        s  = " {}/{}".format(self._prefix, self._prefix_len)
-        s += " via {} dev {}".format(self._next_hop, self._interface)
-        s += " proto:{}".format(self._proto)
-        s += " mtime:{}".format(delta.total_seconds())
-        s += " table:{}".format(self._table)
-        s += " l1-next-v4:{}".format(self._l1_next_hop_v4)
-        s += " l1-next-iface:{}".format(self._l1_iface_name)
+        s  = "[state:{>:5}]".format(self._state)
+        s  = " {>15}/{:2}".format(self._prefix, self._prefix_len)
+        s += " via {:16} dev {:6}".format(self._next_hop, self._interface)
+        s += " proto:{:2}".format(self._proto)
+        s += " mtime:{:.2f}".format(delta.total_seconds())
+        s += " table:{:10}".format(self._table)
+        s += "  ["
+        s += "l1-next-v4:{}".format(self._l1_next_hop_v4)
+        s += ",l1-next-iface:{}".format(self._l1_iface_name)
+        s += ",origin:{}".format(self._origin)
+        s += ",origin-iface:{}".format(self._origin_iface)
+        s += "]"
         return s
 
 
@@ -674,23 +678,15 @@ def overlay_route_local_update_routes(ctx, entry):
     l1_iface_name  = ctx['db-underlay'][interface]['terminal-data']['pl_l1_top_iface_name']
 
     e = RouteEntry(prefix, prefix_len, next_hop, interface,
-                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name, proto="v4", origin="overlay", origin_iface=interface)
+                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name,
+                   proto="v4", origin="overlay", origin_iface=interface)
     return ctx["route-db"].update(e)
 
 
 def process_overlay_full_dynamic(ctx, tables):
-    #warn("receive message from OVERERLAY (DMPRD)\n")
     if not isinstance(tables, list):
-        print("routing message seems corrupt, expect array, got trash\n")
+        log.error("routing message seems corrupt, expect array, got trash")
         return False
-    #overlay_purge(ctx)
-    #ret = overlay_add_new(ctx, tables)
-    # ok, everything is fine, now update routes
-    #if ret: asyncio.ensure_future(route_local_update_routes(ctx))
-    #return ret
-    # return true when the data was valid in some
-    # ways, just to inform the caller if the syntax
-    # is not correct, corrupt, ...
     update_required = False
     for route_entry in tables:
         ret = overlay_route_local_update_routes(ctx, route_entry)
@@ -731,11 +727,6 @@ def terminal_air_by_router_eth(data, ip_addr, proto):
 
 
 def route_db_changed_non_tunnel(ctx):
-
-    local_routes = []
-    terminal_routes = []
-
-    # local processing
     affected_tables = available_routing_tables(ctx['conf'])
     for entry in ctx["route-db"].db:
         if entry.origin == "config":
@@ -808,7 +799,8 @@ async def underlay_route_local_update(ctx, pl_l0_top_iface_name, l0_top_addr_v4)
     ctx["l1-map"][pl_l0_top_iface_name] = l1_next_hop
 
     e = RouteEntry(prefix, prefix_len, next_hop, interface,
-                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name, proto="v4", origin="underlay", origin_iface=pl_l0_top_iface_name)
+                   l1_next_hop_v4=l1_next_hop, l1_iface_name=l1_iface_name,
+                   proto="v4", origin="underlay", origin_iface=pl_l0_top_iface_name)
     ret = ctx["route-db"].update(e)
     if ret:
         asyncio.ensure_future(route_db_changed(ctx))
