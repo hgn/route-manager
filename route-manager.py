@@ -146,9 +146,11 @@ class RouteEntry(object):
     def origin(self):
         return self._origin
 
+
     @property
     def origin_iface(self):
         return self._origin_iface
+
 
     @property
     def interface(self):
@@ -254,6 +256,10 @@ class RouteDB(object):
             if diff.total_seconds() > float(self._timeout):
                 print("remove outdated routing entry")
                 self.db.remove(entry)
+
+    def renew(self):
+        for entry in self.db:
+            entry.state == "new"
 
 
 def time_fnt():
@@ -416,6 +422,20 @@ async def route_db_gc(ctx):
         try:
             await asyncio.sleep(interval)
             ctx["route-db"].gc()
+        except asyncio.CancelledError:
+            break
+    asyncio.get_event_loop().stop()
+
+
+async def route_renew(ctx):
+    # every interval seconds we set the state to new to enforce
+    # a reseting of the routing tables. It is better routes are
+    # configured several time compared where a route was not set
+    interval = 120
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            ctx["route-db"].renew()
         except asyncio.CancelledError:
             break
     asyncio.get_event_loop().stop()
@@ -1217,6 +1237,7 @@ def main(conf, args):
     ctx["l1-map"] = dict()
     asyncio.ensure_future(route_broadcast(ctx))
     asyncio.ensure_future(route_db_gc(ctx))
+    asyncio.ensure_future(route_renew(ctx))
     #asyncio.ensure_future(print_routes_periodically(ctx))
     asyncio.ensure_future(db_check_outdated_periodically(ctx))
     try:
